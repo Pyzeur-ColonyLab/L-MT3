@@ -1,0 +1,30 @@
+# Phase 1 MR-MT3 Laplace Enhancement Dependencies
+# Generated: 2025-11-17
+# Python 3.11.0
+
+# Core Scientific Computing
+numpy==2.3.3
+scipy==1.15.2
+
+# Audio Processing
+librosa==0.11.0
+soundfile==1.0.0
+audioread==3.1.0
+
+# MIDI Processing
+pretty-midi==0.2.11
+mido==1.3.3
+
+# Visualization
+matplotlib==3.10.7
+
+# Configuration & Testing
+PyYAML==6.0.3
+pytest==9.0.1
+pytest-cov==7.0.0
+
+# Additional Dependencies (from librosa)
+numba==0.62.1
+scikit-learn==1.7.2
+joblib==1.5.2
+decorator==5.2.1

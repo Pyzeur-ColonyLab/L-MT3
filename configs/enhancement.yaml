@@ -1,0 +1,97 @@
+consolidation:
+  aggressive_decay_threshold: 0.7
+  aggressive_spectral_threshold: 300.0
+  balanced_decay_threshold: 0.8
+  balanced_spectral_threshold: 200.0
+  conservative_decay_threshold: 0.9
+  conservative_spectral_threshold: 150.0
+  decay_similarity_threshold: 0.8
+  midi_class_match_required: true
+  prony_failure_threshold: 0.2
+  spectral_diff_threshold: 200.0
+  strategy: conservative
+  use_prony_primary: true
+debug: false
+enable_consolidation: true
+enable_metrics: true
+enable_refinement: true
+gammatone:
+  fmax: 4000.0
+  fmin: 50.0
+  n_filters: 48
+metrics:
+  decay_consistency_excellent: 0.8
+  decay_consistency_goal: 0.75
+  decay_consistency_minimum: 0.65
+  phi_baseline: 1.24
+  phi_target_excellent: 1.05
+  phi_target_goal: 1.12
+  phi_target_minimum: 1.18
+  timbre_homogeneity_baseline: 0.55
+  timbre_homogeneity_goal: 0.75
+prony:
+  hop_length: 256
+  min_note_duration: 0.05
+  model_order: 30
+  n_components: 10
+  win_length: 1024
+refinement:
+  bass_programs:
+  - 32
+  - 33
+  - 34
+  - 35
+  - 36
+  - 37
+  - 38
+  - 39
+  brass_programs:
+  - 56
+  - 57
+  - 58
+  - 59
+  - 60
+  - 61
+  - 62
+  - 63
+  bright_timbre_threshold: 1500.0
+  dark_timbre_threshold: 300.0
+  enable_classifier: false
+  enable_heuristics: true
+  fast_attack_threshold: 0.01
+  guitar_programs:
+  - 24
+  - 25
+  - 26
+  - 27
+  - 28
+  - 29
+  - 30
+  - 31
+  harmonic_ratio_threshold: 2.0
+  mid_timbre_threshold: 800.0
+  piano_programs:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  string_programs:
+  - 40
+  - 41
+  - 42
+  - 43
+  - 44
+  - 45
+  - 46
+  - 47
+sample_rate: 16000
+verbose: true
+vqt:
+  bins_per_octave: 12
+  fmin: 55.0
+  n_bins: 72
+  q_rate: 1.0
