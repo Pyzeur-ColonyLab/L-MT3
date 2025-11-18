@@ -22,6 +22,7 @@
 #   --workers N           Number of parallel workers (default: 4)
 #   --skip-install        Skip dependency installation
 #   --test-mode           Run with 1 sample only for testing
+#   --evaluate            Run comparative evaluation after processing
 ################################################################################
 
 set -euo pipefail
@@ -35,6 +36,7 @@ USE_GPU=false
 WORKERS=4
 SKIP_INSTALL=false
 TEST_MODE=false
+RUN_EVALUATION=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
@@ -71,6 +73,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --test-mode)
             TEST_MODE=true
+            shift
+            ;;
+        --evaluate)
+            RUN_EVALUATION=true
             shift
             ;;
         *)
@@ -332,7 +338,31 @@ EOF
 log_success "Metrics report generated"
 
 ################################################################################
-# 8. Summary
+# 8. Run Comparative Evaluation (Optional)
+################################################################################
+
+if [ -n "$RUN_EVALUATION" ]; then
+    log_info "Running comparative evaluation..."
+
+    EVAL_OUTPUT="$OUTPUT_DIR/evaluation"
+
+    python3 evaluate_enhancement.py \
+        --baseline-dir "$TRANSCRIPTION_DIR" \
+        --enhanced-dir "$ENHANCEMENT_DIR" \
+        --audio-dir "$DATA_DIR" \
+        --output-dir "$EVAL_OUTPUT" \
+        2>&1 | tee "$OUTPUT_DIR/logs/evaluation.log"
+
+    if [ $? -eq 0 ]; then
+        log_success "Evaluation complete!"
+        log_info "View report: $EVAL_OUTPUT/evaluation_report.html"
+    else
+        log_warning "Evaluation failed (check logs)"
+    fi
+fi
+
+################################################################################
+# 9. Summary
 ################################################################################
 
 echo ""
