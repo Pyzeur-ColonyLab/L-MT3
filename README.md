@@ -112,6 +112,37 @@ Dependencies:
 
 ---
 
+## Dataset Preparation
+
+### Slakh2100 Dataset Download
+
+For training and evaluation, download the Slakh2100 dataset from Zenodo:
+
+```bash
+# Download Slakh2100 (full dataset - ~200 GB)
+wget https://zenodo.org/records/4599666/files/slakh2100_flac_redux.tar.gz
+
+# Extract dataset
+tar -xzf slakh2100_flac_redux.tar.gz
+
+# Or download specific subsets:
+# babySlakh (16 kHz, smaller - ~13 GB)
+wget https://zenodo.org/records/4599666/files/babyslakh_16k.tar.gz
+tar -xzf babyslakh_16k.tar.gz
+```
+
+**Dataset Information:**
+- **Slakh2100**: Full multi-track dataset with 2100 tracks, FLAC format
+- **babySlakh**: Downsampled subset (16 kHz) for faster experimentation
+- **Zenodo Record**: https://zenodo.org/records/4599666
+- **Citation**: Manilow et al. "Cutting Music Source Separation Some Slakh" (2019)
+
+**Storage Requirements:**
+- Full Slakh2100: ~200 GB
+- babySlakh 16k: ~13 GB
+
+---
+
 ## Usage
 
 ### Basic Usage (Test Signal)
