@@ -120,8 +120,9 @@ log_info "Project root: $PROJECT_ROOT"
 mkdir -p "$OUTPUT_DIR"/{mrmt3_transcriptions,enhanced_transcriptions,metrics,logs}
 log_success "Created output directory structure"
 
-# Convert OUTPUT_DIR to absolute path (needed for cd into subdirectories)
+# Convert paths to absolute (needed when script changes directories)
 OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
+DATA_DIR="$(cd "$DATA_DIR" && pwd)"
 
 # Check Python version
 PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
@@ -194,6 +195,11 @@ if [ "$SKIP_INSTALL" = false ]; then
         numpy==1.24.3 \
         scipy==1.10.1 \
         scikit-learn==1.3.0 \
+        transformers==4.25.1 \
+        datasets==2.8.0 \
+        accelerate==0.15.0 \
+        einops==0.6.0 \
+        omegaconf==2.3.0 \
         2>&1 | tee "$OUTPUT_DIR/logs/mrmt3_install_step4.log"
 
     log_success "All dependencies installed (no backtracking required)"
