@@ -223,7 +223,7 @@ for AUDIO_FILE in "${AUDIO_FILES[@]}"; do
 
     if [ -z "$JOB_ID" ]; then
         log_error "  ✗ Upload failed for $BASENAME"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
         continue
     fi
 
@@ -257,7 +257,7 @@ for AUDIO_FILE in "${AUDIO_FILES[@]}"; do
             break
         elif [ "$STATUS" = "failed" ]; then
             log_error "  ✗ Transcription failed"
-            ((FAILED++))
+            FAILED=$((FAILED + 1))
             continue 2
         fi
 
@@ -267,7 +267,7 @@ for AUDIO_FILE in "${AUDIO_FILES[@]}"; do
 
     if [ $ELAPSED -ge $MAX_WAIT ]; then
         log_error "  ✗ Timeout waiting for transcription"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
         continue
     fi
 
@@ -280,7 +280,7 @@ for AUDIO_FILE in "${AUDIO_FILES[@]}"; do
 
     if [ -z "$MIDI_FILENAME" ]; then
         log_error "  ✗ No MIDI file in results"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
         continue
     fi
 
@@ -288,10 +288,10 @@ for AUDIO_FILE in "${AUDIO_FILES[@]}"; do
     OUTPUT_MIDI="$TRANSCRIPTION_DIR/${FILENAME_NO_EXT}.mid"
     if curl -s "$API_URL/files/$MIDI_FILENAME" -o "$OUTPUT_MIDI"; then
         log_success "  ✓ Downloaded: $OUTPUT_MIDI"
-        ((TRANSCRIBED++))
+        TRANSCRIBED=$((TRANSCRIBED + 1))
     else
         log_error "  ✗ Download failed"
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
     fi
 
     # Cleanup job (optional)
@@ -356,10 +356,10 @@ for AUDIO_FILE in "${AUDIO_FILES[@]}"; do
         --output "$ENHANCED" \
         --config configs/enhancement.yaml \
         2>&1 | tee -a "$ENHANCEMENT_LOG"; then
-        ((PROCESSED++))
+        PROCESSED=$((PROCESSED + 1))
         log_success "Enhanced: $BASENAME"
     else
-        ((FAILED++))
+        FAILED=$((FAILED + 1))
         log_error "Failed: $BASENAME"
     fi
 done
