@@ -164,6 +164,7 @@ if [ "$SKIP_INSTALL" = false ]; then
         tensorflow==2.11.0 \
         tensorflow-probability==0.19.0 \
         protobuf==3.19.6 \
+        'tensorflow-metadata<1.10' \
         jax==0.4.20 \
         jaxlib==0.4.20 \
         flax==0.6.11 \
