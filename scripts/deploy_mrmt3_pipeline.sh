@@ -161,6 +161,18 @@ if [ "$SKIP_INSTALL" = false ]; then
 
     # Install MR-MT3 dependencies
     log_info "Installing MR-MT3 dependencies..."
+
+    # Fix protobuf version conflict with TensorFlow 2.11
+    log_info "Patching MR-MT3 requirements for protobuf compatibility..."
+    if [ -f requirements.txt ]; then
+        sed -i.bak 's/protobuf==3\.20/protobuf==3.19.6/' requirements.txt
+        log_success "Patched requirements.txt: protobuf==3.20 -> protobuf==3.19.6"
+    fi
+    if [ -f requirements-gpu.txt ]; then
+        sed -i.bak 's/protobuf==3\.20/protobuf==3.19.6/' requirements-gpu.txt
+        log_success "Patched requirements-gpu.txt: protobuf==3.20 -> protobuf==3.19.6"
+    fi
+
     if [ "$USE_GPU" = true ]; then
         pip3 install --user -r requirements-gpu.txt 2>&1 | tee "$OUTPUT_DIR/logs/mrmt3_install_gpu.log"
     else
