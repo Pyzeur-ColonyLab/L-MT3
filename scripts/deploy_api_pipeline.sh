@@ -195,7 +195,7 @@ echo -e "${BOLD}╚════════════════════�
 echo ""
 
 for AUDIO_FILE in "${AUDIO_FILES[@]}"; do
-    ((CURRENT_FILE++))
+    CURRENT_FILE=$((CURRENT_FILE + 1))
     BASENAME=$(basename "$AUDIO_FILE")
     FILENAME_NO_EXT="${BASENAME%.*}"
 
@@ -326,7 +326,7 @@ echo -e "${BOLD}╚════════════════════�
 echo ""
 
 for AUDIO_FILE in "${AUDIO_FILES[@]}"; do
-    ((CURRENT_ENH++))
+    CURRENT_ENH=$((CURRENT_ENH + 1))
     BASENAME=$(basename "$AUDIO_FILE" | sed 's/\.[^.]*$//')
     TRANSCRIPTION="$TRANSCRIPTION_DIR/${BASENAME}.mid"
     ENHANCED="$ENHANCEMENT_DIR/${BASENAME}_enhanced.mid"
