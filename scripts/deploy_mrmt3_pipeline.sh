@@ -120,6 +120,9 @@ log_info "Project root: $PROJECT_ROOT"
 mkdir -p "$OUTPUT_DIR"/{mrmt3_transcriptions,enhanced_transcriptions,metrics,logs}
 log_success "Created output directory structure"
 
+# Convert OUTPUT_DIR to absolute path (needed for cd into subdirectories)
+OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
+
 # Check Python version
 PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
 log_info "Python version: $PYTHON_VERSION"
