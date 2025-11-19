@@ -143,6 +143,7 @@ pip3 install --user \
     'mido>=1.3.0' \
     'matplotlib>=3.7.0,<4.0.0' \
     'PyYAML>=6.0' \
+    'tqdm>=4.65.0' \
     2>&1 | tee "$OUTPUT_DIR/logs/dependencies_install.log"
 
 log_success "Dependencies installed successfully"
@@ -182,9 +183,30 @@ API_LOG="$OUTPUT_DIR/logs/api_operations.log"
 TRANSCRIBED=0
 FAILED=0
 
+# Progress tracking
+CURRENT_FILE=0
+TOTAL_TO_PROCESS=${#AUDIO_FILES[@]}
+
+echo -e "${BOLD}╔════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}║              API Transcription Progress                   ║${NC}"
+echo -e "${BOLD}╚════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+
 for AUDIO_FILE in "${AUDIO_FILES[@]}"; do
+    ((CURRENT_FILE++))
     BASENAME=$(basename "$AUDIO_FILE")
     FILENAME_NO_EXT="${BASENAME%.*}"
+
+    # Progress bar
+    PERCENT=$((CURRENT_FILE * 100 / TOTAL_TO_PROCESS))
+    FILLED=$((CURRENT_FILE * 40 / TOTAL_TO_PROCESS))
+    EMPTY=$((40 - FILLED))
+    BAR=$(printf "%${FILLED}s" | tr ' ' '█')
+    SPACES=$(printf "%${EMPTY}s" | tr ' ' '░')
+
+    echo -ne "\r${CYAN}[${BAR}${SPACES}] ${PERCENT}% (${CURRENT_FILE}/${TOTAL_TO_PROCESS})${NC} "
+    echo -ne "${YELLOW}${BASENAME}${NC}                    \r"
+    echo ""
 
     log_info "Processing: $BASENAME"
 
@@ -291,10 +313,32 @@ ENHANCEMENT_LOG="$OUTPUT_DIR/logs/laplace_enhancement.log"
 PROCESSED=0
 FAILED=0
 
+# Progress tracking
+CURRENT_ENH=0
+TOTAL_TO_ENHANCE=${#AUDIO_FILES[@]}
+
+echo ""
+echo -e "${BOLD}╔════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}║            Laplace Enhancement Progress                   ║${NC}"
+echo -e "${BOLD}╚════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+
 for AUDIO_FILE in "${AUDIO_FILES[@]}"; do
+    ((CURRENT_ENH++))
     BASENAME=$(basename "$AUDIO_FILE" | sed 's/\.[^.]*$//')
     TRANSCRIPTION="$TRANSCRIPTION_DIR/${BASENAME}.mid"
     ENHANCED="$ENHANCEMENT_DIR/${BASENAME}_enhanced.mid"
+
+    # Progress bar
+    PERCENT_ENH=$((CURRENT_ENH * 100 / TOTAL_TO_ENHANCE))
+    FILLED_ENH=$((CURRENT_ENH * 40 / TOTAL_TO_ENHANCE))
+    EMPTY_ENH=$((40 - FILLED_ENH))
+    BAR_ENH=$(printf "%${FILLED_ENH}s" | tr ' ' '█')
+    SPACES_ENH=$(printf "%${EMPTY_ENH}s" | tr ' ' '░')
+
+    echo -ne "\r${CYAN}[${BAR_ENH}${SPACES_ENH}] ${PERCENT_ENH}% (${CURRENT_ENH}/${TOTAL_TO_ENHANCE})${NC} "
+    echo -ne "${YELLOW}${BASENAME}${NC}                    \r"
+    echo ""
 
     if [ ! -f "$TRANSCRIPTION" ]; then
         log_warning "Transcription not found: $TRANSCRIPTION (skipping)"
