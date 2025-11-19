@@ -21,7 +21,8 @@ OUTPUT_DIR="${1:-$DEFAULT_DIR}"
 
 # HuggingFace model URL
 # Based on: https://huggingface.co/gudgud1014/MR-MT3/tree/main
-MODEL_URL="https://huggingface.co/gudgud1014/MR-MT3/resolve/main/mt3.pth"
+# Using slakh_f1_0.65.pth (proven working model from music-to-midi-api)
+MODEL_URL="https://huggingface.co/gudgud1014/MR-MT3/resolve/main/slakh_f1_0.65.pth"
 MODEL_FILE="$OUTPUT_DIR/mt3.pth"
 
 # Colors
@@ -56,7 +57,7 @@ fi
 # Download model
 log_info "Downloading MR-MT3 checkpoint from HuggingFace..."
 log_info "URL: $MODEL_URL"
-log_info "This may take several minutes (~184 MB)..."
+log_info "This may take several minutes (~400 MB)..."
 
 # Try wget first, fall back to curl
 if command -v wget &> /dev/null; then

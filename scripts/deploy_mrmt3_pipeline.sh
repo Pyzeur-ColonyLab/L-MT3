@@ -159,27 +159,41 @@ if [ "$SKIP_INSTALL" = false ]; then
         cd "$MRMT3_DIR"
     fi
 
-    # Install MR-MT3 dependencies
-    log_info "Installing MR-MT3 dependencies..."
+    # Install MR-MT3 dependencies (optimized to avoid pip backtracking)
+    log_info "Installing MR-MT3 dependencies (optimized installation)..."
 
-    # Fix protobuf version conflict with TensorFlow 2.11
-    log_info "Patching MR-MT3 requirements for protobuf compatibility..."
-    if [ -f requirements.txt ]; then
-        sed -i.bak 's/protobuf==3\.20/protobuf==3.19.6/' requirements.txt
-        log_success "Patched requirements.txt: protobuf==3.20 -> protobuf==3.19.6"
-    fi
-    if [ -f requirements-gpu.txt ]; then
-        sed -i.bak 's/protobuf==3\.20/protobuf==3.19.6/' requirements-gpu.txt
-        log_success "Patched requirements-gpu.txt: protobuf==3.20 -> protobuf==3.19.6"
-    fi
+    # Install core dependencies in order (prevents resolver backtracking)
+    log_info "Step 1/4: Installing TensorFlow core..."
+    pip3 install --user --no-deps \
+        tensorflow==2.11.0 \
+        protobuf==3.19.6 \
+        2>&1 | tee "$OUTPUT_DIR/logs/mrmt3_install_step1.log"
 
-    if [ "$USE_GPU" = true ]; then
-        pip3 install --user -r requirements-gpu.txt 2>&1 | tee "$OUTPUT_DIR/logs/mrmt3_install_gpu.log"
-    else
-        pip3 install --user -r requirements.txt 2>&1 | tee "$OUTPUT_DIR/logs/mrmt3_install.log"
-    fi
+    log_info "Step 2/4: Installing TensorFlow ecosystem..."
+    pip3 install --user \
+        tensorboard==2.11.2 \
+        tensorflow-io-gcs-filesystem==0.31.0 \
+        tensorflow-datasets==4.8.3 \
+        2>&1 | tee "$OUTPUT_DIR/logs/mrmt3_install_step2.log"
 
-    log_success "All dependencies installed"
+    log_info "Step 3/4: Installing audio processing libraries..."
+    pip3 install --user \
+        note-seq==0.0.5 \
+        pretty-midi==0.2.10 \
+        mir-eval==0.7 \
+        librosa==0.10.0 \
+        2>&1 | tee "$OUTPUT_DIR/logs/mrmt3_install_step3.log"
+
+    log_info "Step 4/4: Installing remaining MR-MT3 dependencies..."
+    pip3 install --user \
+        torch==2.0.1 \
+        torchaudio==2.0.2 \
+        numpy==1.24.3 \
+        scipy==1.10.1 \
+        scikit-learn==1.3.0 \
+        2>&1 | tee "$OUTPUT_DIR/logs/mrmt3_install_step4.log"
+
+    log_success "All dependencies installed (no backtracking required)"
 else
     log_warning "Skipping dependency installation (--skip-install)"
     MRMT3_DIR="$PROJECT_ROOT/mr-mt3"
