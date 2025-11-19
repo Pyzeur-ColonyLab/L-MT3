@@ -138,18 +138,7 @@ fi
 ################################################################################
 
 if [ "$SKIP_INSTALL" = false ]; then
-    log_info "Installing dependencies..."
-
-    # Install Laplace enhancement dependencies
-    log_info "Installing Laplace enhancement dependencies..."
-    pip3 install --user --upgrade \
-        numpy==1.24.3 \
-        scipy==1.10.1 \
-        librosa==0.10.0 \
-        pretty_midi==0.2.10 \
-        pyyaml==6.0 \
-        pytest==7.3.1 \
-        2>&1 | tee "$OUTPUT_DIR/logs/laplace_install.log"
+    log_info "Installing dependencies (using proven music-to-midi-api versions)..."
 
     # Check if MR-MT3 is cloned
     MRMT3_DIR="$PROJECT_ROOT/mr-mt3"
@@ -157,52 +146,41 @@ if [ "$SKIP_INSTALL" = false ]; then
         log_info "Cloning MR-MT3 repository..."
         cd "$PROJECT_ROOT"
         git clone https://github.com/gudgud96/MR-MT3.git mr-mt3
-        cd mr-mt3
     else
         log_info "MR-MT3 already cloned at $MRMT3_DIR"
-        cd "$MRMT3_DIR"
     fi
 
-    # Install MR-MT3 dependencies (optimized to avoid pip backtracking)
-    log_info "Installing MR-MT3 dependencies (optimized installation)..."
-
-    # Install core dependencies in order (prevents resolver backtracking)
-    log_info "Step 1/4: Installing TensorFlow core..."
-    pip3 install --user --no-deps \
+    # Install all dependencies in one go (working combination from music-to-midi-api)
+    log_info "Installing MR-MT3 + Laplace dependencies..."
+    pip3 install --user \
+        torch>=2.1.0 \
+        torchaudio>=2.1.0 \
+        transformers==4.18.0 \
+        librosa==0.9.1 \
+        note-seq==0.0.3 \
+        pretty-midi==0.2.9 \
+        einops==0.4.1 \
+        'numpy>=1.22,<1.24' \
         tensorflow==2.11.0 \
+        tensorflow-probability==0.19.0 \
         protobuf==3.19.6 \
-        2>&1 | tee "$OUTPUT_DIR/logs/mrmt3_install_step1.log"
+        jax==0.4.20 \
+        jaxlib==0.4.20 \
+        flax==0.6.11 \
+        optax==0.1.7 \
+        clu==0.0.7 \
+        ddsp==3.6.0 \
+        seqio \
+        'sentencepiece<0.2.0' \
+        t5==0.9.3 \
+        soundfile \
+        'packaging>=22.0' \
+        'scipy>=1.10.0' \
+        pyyaml==6.0 \
+        pytest==7.4.3 \
+        2>&1 | tee "$OUTPUT_DIR/logs/dependencies_install.log"
 
-    log_info "Step 2/4: Installing TensorFlow ecosystem..."
-    pip3 install --user \
-        tensorboard==2.11.2 \
-        tensorflow-io-gcs-filesystem==0.31.0 \
-        tensorflow-datasets==4.8.3 \
-        2>&1 | tee "$OUTPUT_DIR/logs/mrmt3_install_step2.log"
-
-    log_info "Step 3/4: Installing audio processing libraries..."
-    pip3 install --user \
-        note-seq==0.0.5 \
-        pretty-midi==0.2.10 \
-        mir-eval==0.7 \
-        librosa==0.10.0 \
-        2>&1 | tee "$OUTPUT_DIR/logs/mrmt3_install_step3.log"
-
-    log_info "Step 4/4: Installing remaining MR-MT3 dependencies..."
-    pip3 install --user \
-        torch==2.0.1 \
-        torchaudio==2.0.2 \
-        numpy==1.24.3 \
-        scipy==1.10.1 \
-        scikit-learn==1.3.0 \
-        transformers==4.25.1 \
-        datasets==2.8.0 \
-        accelerate==0.15.0 \
-        einops==0.6.0 \
-        omegaconf==2.3.0 \
-        2>&1 | tee "$OUTPUT_DIR/logs/mrmt3_install_step4.log"
-
-    log_success "All dependencies installed (no backtracking required)"
+    log_success "All dependencies installed successfully"
 else
     log_warning "Skipping dependency installation (--skip-install)"
     MRMT3_DIR="$PROJECT_ROOT/mr-mt3"
