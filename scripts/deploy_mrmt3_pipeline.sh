@@ -254,36 +254,43 @@ fi
 
 log_info "Running MR-MT3 inference on ${#AUDIO_FILES[@]} files..."
 
-cd "$MRMT3_DIR"
-
 TRANSCRIPTION_DIR="$OUTPUT_DIR/mrmt3_transcriptions"
 INFERENCE_LOG="$OUTPUT_DIR/logs/mrmt3_inference.log"
 
-cat > inference_config.yaml <<EOF
-# MR-MT3 Inference Configuration
-model_checkpoint: $MODEL_PATH
-batch_size: $BATCH_SIZE
-use_gpu: $USE_GPU
-sample_rate: 16000
-max_duration: 300  # seconds
-num_workers: $WORKERS
-EOF
+# Determine device
+DEVICE="cpu"
+if [ "$USE_GPU" = true ]; then
+    DEVICE="cuda"
+fi
 
-# Create file list
-FILE_LIST="$OUTPUT_DIR/audio_files.txt"
-printf '%s\n' "${AUDIO_FILES[@]}" > "$FILE_LIST"
+log_info "Starting MR-MT3 inference (batch size: $BATCH_SIZE, device: $DEVICE)..."
 
-log_info "Starting MR-MT3 inference (batch size: $BATCH_SIZE)..."
+# Process each audio file
+TRANSCRIBED=0
+FAILED=0
 
-# Run inference (adjust command based on actual MR-MT3 interface)
-python3 -m mr_mt3.inference \
-    --config inference_config.yaml \
-    --file-list "$FILE_LIST" \
-    --output-dir "$TRANSCRIPTION_DIR" \
-    2>&1 | tee "$INFERENCE_LOG"
+for AUDIO_FILE in "${AUDIO_FILES[@]}"; do
+    BASENAME=$(basename "$AUDIO_FILE")
+    log_info "Processing: $BASENAME"
+
+    if python3 "$SCRIPT_DIR/run_mrmt3_inference.py" \
+        --audio-file "$AUDIO_FILE" \
+        --output-dir "$TRANSCRIPTION_DIR" \
+        --model-path "$MODEL_PATH" \
+        --batch-size "$BATCH_SIZE" \
+        --device "$DEVICE" \
+        --verbose \
+        2>&1 | tee -a "$INFERENCE_LOG"; then
+        ((TRANSCRIBED++))
+        log_success "Transcribed: $BASENAME"
+    else
+        ((FAILED++))
+        log_error "Failed: $BASENAME"
+    fi
+done
 
 TRANSCRIPTION_COUNT=$(find "$TRANSCRIPTION_DIR" -name "*.mid" | wc -l)
-log_success "MR-MT3 inference complete: $TRANSCRIPTION_COUNT transcriptions"
+log_success "MR-MT3 inference complete: $TRANSCRIPTION_COUNT transcriptions ($FAILED failed)"
 
 ################################################################################
 # 6. Run Laplace Enhancement
