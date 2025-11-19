@@ -1,27 +1,28 @@
 #!/bin/bash
 ################################################################################
-# MR-MT3 + Laplace Enhancement Pipeline - Production Deployment Script
+# API-Based MR-MT3 + Laplace Enhancement Pipeline
 #
-# This script sets up the complete pipeline on internal instances:
-# 1. Clone MR-MT3 repository
-# 2. Install all dependencies (MR-MT3 + Laplace enhancement)
-# 3. Download model checkpoint
-# 4. Process audio files through MR-MT3 inference
-# 5. Apply Laplace enhancement to transcriptions
+# This script uses the deployed ml-api.dyapason.io service instead of local
+# MR-MT3 installation, eliminating dependency management complexity.
+#
+# Workflow:
+# 1. Upload audio files to API → receive job IDs
+# 2. Trigger transcription via API
+# 3. Poll for completion status
+# 4. Download MIDI transcriptions
+# 5. Apply Laplace enhancement
 # 6. Generate evaluation metrics
 #
 # Usage:
-#   ./deploy_mrmt3_pipeline.sh [OPTIONS]
+#   ./deploy_api_pipeline.sh [OPTIONS]
 #
 # Options:
 #   --data-dir PATH       Input audio directory (default: ./audio_input)
 #   --output-dir PATH     Output directory (default: ./pipeline_output)
-#   --model-path PATH     Pre-downloaded model checkpoint path (skip download)
-#   --batch-size N        MR-MT3 batch size (default: 8)
-#   --gpu                 Use GPU if available (default: CPU only)
-#   --workers N           Number of parallel workers (default: 4)
-#   --skip-install        Skip dependency installation
-#   --test-mode           Run with 1 sample only for testing
+#   --api-url URL         API base URL (default: https://ml-api.dyapason.io)
+#   --confidence FLOAT    Confidence threshold 0.0-1.0 (default: 0.1)
+#   --batch-size N        API batch size 1-32 (default: 8)
+#   --test-mode           Process only 1 file for testing
 #   --evaluate            Run comparative evaluation after processing
 ################################################################################
 
@@ -30,11 +31,9 @@ set -euo pipefail
 # Default configuration
 DATA_DIR="./audio_input"
 OUTPUT_DIR="./pipeline_output"
-MODEL_PATH=""
+API_URL="https://ml-api.dyapason.io"
+CONFIDENCE=0.1
 BATCH_SIZE=8
-USE_GPU=false
-WORKERS=4
-SKIP_INSTALL=false
 TEST_MODE=false
 RUN_EVALUATION=""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -51,25 +50,17 @@ while [[ $# -gt 0 ]]; do
             OUTPUT_DIR="$2"
             shift 2
             ;;
-        --model-path)
-            MODEL_PATH="$2"
+        --api-url)
+            API_URL="$2"
+            shift 2
+            ;;
+        --confidence)
+            CONFIDENCE="$2"
             shift 2
             ;;
         --batch-size)
             BATCH_SIZE="$2"
             shift 2
-            ;;
-        --gpu)
-            USE_GPU=true
-            shift
-            ;;
-        --workers)
-            WORKERS="$2"
-            shift 2
-            ;;
-        --skip-install)
-            SKIP_INSTALL=true
-            shift
             ;;
         --test-mode)
             TEST_MODE=true
@@ -113,113 +104,57 @@ log_error() {
 # 1. Environment Setup
 ################################################################################
 
-log_info "Starting MR-MT3 + Laplace Enhancement Pipeline Deployment"
+log_info "Starting API-Based MR-MT3 + Laplace Enhancement Pipeline"
 log_info "Project root: $PROJECT_ROOT"
+log_info "API endpoint: $API_URL"
 
 # Create output directories
-mkdir -p "$OUTPUT_DIR"/{mrmt3_transcriptions,enhanced_transcriptions,metrics,logs}
+mkdir -p "$OUTPUT_DIR"/{api_transcriptions,enhanced_transcriptions,metrics,logs}
 log_success "Created output directory structure"
 
-# Convert paths to absolute (needed when script changes directories)
+# Convert paths to absolute
 OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
 DATA_DIR="$(cd "$DATA_DIR" && pwd)"
 
-# Check Python version
-PYTHON_VERSION=$(python3 --version 2>&1 | awk '{print $2}')
-log_info "Python version: $PYTHON_VERSION"
-
-if [[ ! "$PYTHON_VERSION" =~ ^3\.(8|9|10|11) ]]; then
-    log_error "Python 3.8-3.11 required, found $PYTHON_VERSION"
+# Check API health
+log_info "Checking API availability..."
+if ! HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/health"); then
+    log_error "Failed to connect to API at $API_URL"
     exit 1
 fi
 
-################################################################################
-# 2. Install Dependencies
-################################################################################
-
-if [ "$SKIP_INSTALL" = false ]; then
-    log_info "Installing dependencies (using proven music-to-midi-api versions)..."
-
-    # Check if MR-MT3 is cloned
-    MRMT3_DIR="$PROJECT_ROOT/mr-mt3"
-    if [ ! -d "$MRMT3_DIR" ]; then
-        log_info "Cloning MR-MT3 repository..."
-        cd "$PROJECT_ROOT"
-        git clone https://github.com/gudgud96/MR-MT3.git mr-mt3
-    else
-        log_info "MR-MT3 already cloned at $MRMT3_DIR"
-    fi
-
-    # Install all dependencies in one go (working combination from music-to-midi-api)
-    log_info "Installing MR-MT3 + Laplace dependencies..."
-    pip3 install --user \
-        torch>=2.1.0 \
-        torchaudio>=2.1.0 \
-        transformers==4.18.0 \
-        librosa==0.9.1 \
-        note-seq==0.0.3 \
-        pretty-midi==0.2.9 \
-        einops==0.4.1 \
-        'numpy>=1.22,<1.24' \
-        tensorflow==2.11.0 \
-        tensorflow-probability==0.19.0 \
-        protobuf==3.19.6 \
-        'tensorflow-metadata<1.10' \
-        'tensorflow-datasets>=4.5.2,<4.6.0' \
-        'dill>=0.3.4,<0.4.0' \
-        jax==0.4.20 \
-        jaxlib==0.4.20 \
-        flax==0.6.11 \
-        optax==0.1.7 \
-        clu==0.0.7 \
-        ddsp==3.6.0 \
-        seqio \
-        'sentencepiece<0.2.0' \
-        t5==0.9.3 \
-        soundfile \
-        'packaging>=22.0' \
-        'scipy>=1.10.0' \
-        pyyaml==6.0 \
-        pytest==7.4.3 \
-        2>&1 | tee "$OUTPUT_DIR/logs/dependencies_install.log"
-
-    log_success "All dependencies installed successfully"
-else
-    log_warning "Skipping dependency installation (--skip-install)"
-    MRMT3_DIR="$PROJECT_ROOT/mr-mt3"
+if [ "$HTTP_CODE" != "200" ]; then
+    log_error "API health check failed (HTTP $HTTP_CODE)"
+    exit 1
 fi
 
-################################################################################
-# 3. Download Model Checkpoint
-################################################################################
-
-if [ -z "$MODEL_PATH" ]; then
-    log_info "Downloading MR-MT3 model checkpoint..."
-
-    # Use pretrained directory within MR-MT3
-    MODEL_PATH="$MRMT3_DIR/pretrained/mt3.pth"
-
-    if [ ! -f "$MODEL_PATH" ]; then
-        log_info "Downloading model from HuggingFace..."
-        # Use our download script
-        bash "$SCRIPT_DIR/download_mrmt3_model.sh" "$MRMT3_DIR/pretrained" 2>&1 | tee "$OUTPUT_DIR/logs/model_download.log"
-        log_success "Model downloaded to $MODEL_PATH"
-    else
-        SIZE=$(du -h "$MODEL_PATH" | cut -f1)
-        log_info "Model already exists at $MODEL_PATH ($SIZE)"
-    fi
-else
-    log_info "Using pre-downloaded model at $MODEL_PATH"
-fi
+log_success "API is healthy and reachable"
 
 ################################################################################
-# 4. Prepare Audio Files
+# 2. Install Laplace Enhancement Dependencies Only
+################################################################################
+
+log_info "Installing Laplace enhancement dependencies..."
+pip3 install --user \
+    'numpy>=1.24.0,<2.0.0' \
+    'scipy>=1.10.0,<1.15.0' \
+    'librosa>=0.10.0,<0.11.0' \
+    'pretty-midi>=0.2.10' \
+    'mido>=1.3.0' \
+    'matplotlib>=3.7.0,<4.0.0' \
+    'PyYAML>=6.0' \
+    2>&1 | tee "$OUTPUT_DIR/logs/dependencies_install.log"
+
+log_success "Dependencies installed successfully"
+
+################################################################################
+# 3. Prepare Audio Files
 ################################################################################
 
 log_info "Preparing audio files from $DATA_DIR..."
 
 # Find all audio files
-AUDIO_FILES=($(find "$DATA_DIR" -type f \( -name "*.wav" -o -name "*.mp3" -o -name "*.flac" \)))
+AUDIO_FILES=($(find "$DATA_DIR" -type f \( -name "*.wav" -o -name "*.mp3" -o -name "*.flac" -o -name "*.m4a" -o -name "*.ogg" \)))
 TOTAL_FILES=${#AUDIO_FILES[@]}
 
 if [ $TOTAL_FILES -eq 0 ]; then
@@ -236,51 +171,114 @@ if [ "$TEST_MODE" = true ]; then
 fi
 
 ################################################################################
-# 5. Run MR-MT3 Inference
+# 4. Upload and Transcribe via API
 ################################################################################
 
-log_info "Running MR-MT3 inference on ${#AUDIO_FILES[@]} files..."
+log_info "Uploading and transcribing ${#AUDIO_FILES[@]} files via API..."
 
-TRANSCRIPTION_DIR="$OUTPUT_DIR/mrmt3_transcriptions"
-INFERENCE_LOG="$OUTPUT_DIR/logs/mrmt3_inference.log"
+TRANSCRIPTION_DIR="$OUTPUT_DIR/api_transcriptions"
+API_LOG="$OUTPUT_DIR/logs/api_operations.log"
 
-# Determine device
-DEVICE="cpu"
-if [ "$USE_GPU" = true ]; then
-    DEVICE="cuda"
-fi
-
-log_info "Starting MR-MT3 inference (batch size: $BATCH_SIZE, device: $DEVICE)..."
-
-# Process each audio file
 TRANSCRIBED=0
 FAILED=0
 
 for AUDIO_FILE in "${AUDIO_FILES[@]}"; do
     BASENAME=$(basename "$AUDIO_FILE")
+    FILENAME_NO_EXT="${BASENAME%.*}"
+
     log_info "Processing: $BASENAME"
 
-    if python3 "$SCRIPT_DIR/run_mrmt3_inference.py" \
-        --audio-file "$AUDIO_FILE" \
-        --output-dir "$TRANSCRIPTION_DIR" \
-        --model-path "$MODEL_PATH" \
-        --batch-size "$BATCH_SIZE" \
-        --device "$DEVICE" \
-        --verbose \
-        2>&1 | tee -a "$INFERENCE_LOG"; then
-        ((TRANSCRIBED++))
-        log_success "Transcribed: $BASENAME"
-    else
+    # Step 1: Upload file
+    log_info "  → Uploading to API..."
+    UPLOAD_RESPONSE=$(curl -s -X POST "$API_URL/upload" \
+        -F "file=@$AUDIO_FILE" \
+        2>&1 | tee -a "$API_LOG")
+
+    # Extract job_id from response
+    JOB_ID=$(echo "$UPLOAD_RESPONSE" | grep -o '"job_id":"[^"]*"' | cut -d'"' -f4)
+
+    if [ -z "$JOB_ID" ]; then
+        log_error "  ✗ Upload failed for $BASENAME"
         ((FAILED++))
-        log_error "Failed: $BASENAME"
+        continue
     fi
+
+    log_success "  ✓ Uploaded (Job ID: $JOB_ID)"
+
+    # Step 2: Start transcription
+    log_info "  → Starting transcription..."
+    PREDICT_RESPONSE=$(curl -s -X POST "$API_URL/predict/$JOB_ID" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"confidence_threshold\": $CONFIDENCE,
+            \"batch_size\": $BATCH_SIZE,
+            \"use_stems\": false,
+            \"output_format\": \"midi\"
+        }" \
+        2>&1 | tee -a "$API_LOG")
+
+    log_success "  ✓ Transcription started"
+
+    # Step 3: Poll for completion
+    log_info "  → Waiting for completion..."
+    MAX_WAIT=600  # 10 minutes
+    ELAPSED=0
+
+    while [ $ELAPSED -lt $MAX_WAIT ]; do
+        STATUS_RESPONSE=$(curl -s "$API_URL/status/$JOB_ID" 2>&1 | tee -a "$API_LOG")
+        STATUS=$(echo "$STATUS_RESPONSE" | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+
+        if [ "$STATUS" = "completed" ]; then
+            log_success "  ✓ Transcription completed"
+            break
+        elif [ "$STATUS" = "failed" ]; then
+            log_error "  ✗ Transcription failed"
+            ((FAILED++))
+            continue 2
+        fi
+
+        sleep 5
+        ((ELAPSED+=5))
+    done
+
+    if [ $ELAPSED -ge $MAX_WAIT ]; then
+        log_error "  ✗ Timeout waiting for transcription"
+        ((FAILED++))
+        continue
+    fi
+
+    # Step 4: Download MIDI file
+    log_info "  → Downloading MIDI..."
+
+    # Get results to find MIDI filename
+    RESULTS_RESPONSE=$(curl -s "$API_URL/results/$JOB_ID" 2>&1 | tee -a "$API_LOG")
+    MIDI_FILENAME=$(echo "$RESULTS_RESPONSE" | grep -o '"midi_full":"[^"]*"' | cut -d'"' -f4)
+
+    if [ -z "$MIDI_FILENAME" ]; then
+        log_error "  ✗ No MIDI file in results"
+        ((FAILED++))
+        continue
+    fi
+
+    # Download MIDI
+    OUTPUT_MIDI="$TRANSCRIPTION_DIR/${FILENAME_NO_EXT}.mid"
+    if curl -s "$API_URL/files/$MIDI_FILENAME" -o "$OUTPUT_MIDI"; then
+        log_success "  ✓ Downloaded: $OUTPUT_MIDI"
+        ((TRANSCRIBED++))
+    else
+        log_error "  ✗ Download failed"
+        ((FAILED++))
+    fi
+
+    # Cleanup job (optional)
+    curl -s -X DELETE "$API_URL/jobs/$JOB_ID" > /dev/null 2>&1
 done
 
 TRANSCRIPTION_COUNT=$(find "$TRANSCRIPTION_DIR" -name "*.mid" | wc -l)
-log_success "MR-MT3 inference complete: $TRANSCRIPTION_COUNT transcriptions ($FAILED failed)"
+log_success "API transcription complete: $TRANSCRIPTION_COUNT transcriptions ($FAILED failed)"
 
 ################################################################################
-# 6. Run Laplace Enhancement
+# 5. Run Laplace Enhancement
 ################################################################################
 
 log_info "Running Laplace enhancement on transcriptions..."
@@ -290,7 +288,6 @@ cd "$PROJECT_ROOT"
 ENHANCEMENT_DIR="$OUTPUT_DIR/enhanced_transcriptions"
 ENHANCEMENT_LOG="$OUTPUT_DIR/logs/laplace_enhancement.log"
 
-# Process each transcription
 PROCESSED=0
 FAILED=0
 
@@ -307,14 +304,12 @@ for AUDIO_FILE in "${AUDIO_FILES[@]}"; do
     log_info "Enhancing: $BASENAME"
 
     # Run enhancement pipeline
-    python3 phase1_mrmt3_enhancement.py \
+    if python3 phase1_mrmt3_enhancement.py \
         --midi "$TRANSCRIPTION" \
         --audio "$AUDIO_FILE" \
         --output "$ENHANCED" \
         --config configs/enhancement.yaml \
-        2>&1 | tee -a "$ENHANCEMENT_LOG"
-
-    if [ $? -eq 0 ]; then
+        2>&1 | tee -a "$ENHANCEMENT_LOG"; then
         ((PROCESSED++))
         log_success "Enhanced: $BASENAME"
     else
@@ -326,7 +321,7 @@ done
 log_success "Laplace enhancement complete: $PROCESSED succeeded, $FAILED failed"
 
 ################################################################################
-# 7. Generate Metrics Report
+# 6. Generate Metrics Report
 ################################################################################
 
 log_info "Generating evaluation metrics..."
@@ -335,20 +330,18 @@ METRICS_REPORT="$OUTPUT_DIR/metrics/evaluation_report.json"
 
 python3 <<EOF
 import json
-import sys
 from pathlib import Path
 
-# Collect metrics from enhancement logs
 metrics = {
-    "pipeline_version": "Phase1_MR-MT3_Laplace",
+    "pipeline_version": "Phase1_API_MR-MT3_Laplace",
+    "api_endpoint": "$API_URL",
     "total_files": ${#AUDIO_FILES[@]},
-    "mrmt3_transcriptions": $TRANSCRIPTION_COUNT,
+    "api_transcriptions": $TRANSCRIPTION_COUNT,
     "enhanced_transcriptions": $PROCESSED,
     "failed_enhancements": $FAILED,
-    "processing_stats": {
-        "batch_size": $BATCH_SIZE,
-        "workers": $WORKERS,
-        "use_gpu": $USE_GPU
+    "processing_params": {
+        "confidence_threshold": $CONFIDENCE,
+        "batch_size": $BATCH_SIZE
     }
 }
 
@@ -361,7 +354,7 @@ EOF
 log_success "Metrics report generated"
 
 ################################################################################
-# 8. Run Comparative Evaluation (Optional)
+# 7. Run Comparative Evaluation (Optional)
 ################################################################################
 
 if [ -n "$RUN_EVALUATION" ]; then
@@ -385,7 +378,7 @@ if [ -n "$RUN_EVALUATION" ]; then
 fi
 
 ################################################################################
-# 9. Summary
+# 8. Summary
 ################################################################################
 
 echo ""
@@ -395,12 +388,12 @@ echo "========================================================================"
 echo ""
 echo "Input:              $DATA_DIR (${#AUDIO_FILES[@]} files)"
 echo "Output:             $OUTPUT_DIR"
-echo "MR-MT3 transcripts: $TRANSCRIPTION_COUNT"
+echo "API transcripts:    $TRANSCRIPTION_COUNT"
 echo "Enhanced:           $PROCESSED"
 echo "Failed:             $FAILED"
 echo ""
 echo "Outputs:"
-echo "  - MR-MT3 transcriptions:   $OUTPUT_DIR/mrmt3_transcriptions/"
+echo "  - API transcriptions:      $OUTPUT_DIR/api_transcriptions/"
 echo "  - Enhanced transcriptions: $OUTPUT_DIR/enhanced_transcriptions/"
 echo "  - Metrics:                 $OUTPUT_DIR/metrics/"
 echo "  - Logs:                    $OUTPUT_DIR/logs/"
