@@ -276,7 +276,7 @@ for AUDIO_FILE in "${AUDIO_FILES[@]}"; do
 
     # Get results to find MIDI filename
     RESULTS_RESPONSE=$(curl -s "$API_URL/results/$JOB_ID" 2>&1 | tee -a "$API_LOG")
-    MIDI_FILENAME=$(echo "$RESULTS_RESPONSE" | grep -o '"midi_full":"[^"]*"' | cut -d'"' -f4)
+    MIDI_FILENAME=$(echo "$RESULTS_RESPONSE" | grep -o '"midi_filename":"[^"]*"' | head -1 | cut -d'"' -f4)
 
     if [ -z "$MIDI_FILENAME" ]; then
         log_error "  ✗ No MIDI file in results"
