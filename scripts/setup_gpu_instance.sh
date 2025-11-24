@@ -117,7 +117,7 @@ fi
 # Check CUDA
 if [ -d "/usr/local/cuda" ]; then
     export PATH="/usr/local/cuda/bin:$PATH"
-    export LD_LIBRARY_PATH="/usr/local/cuda/lib64:$LD_LIBRARY_PATH"
+    export LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH:-}"
     log_success "CUDA found at /usr/local/cuda"
 else
     log_warning "CUDA not found - installing CUDA toolkit..."
@@ -127,7 +127,7 @@ else
     apt-get update -qq
     apt-get -y install cuda-11-8
     export PATH="/usr/local/cuda-11.8/bin:$PATH"
-    export LD_LIBRARY_PATH="/usr/local/cuda-11.8/lib64:$LD_LIBRARY_PATH"
+    export LD_LIBRARY_PATH="/usr/local/cuda-11.8/lib64:${LD_LIBRARY_PATH:-}"
     log_success "CUDA 11.8 installed"
 fi
 
