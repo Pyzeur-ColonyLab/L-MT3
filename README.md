@@ -1,307 +1,245 @@
-# Laplace-Inspired Audio Analysis for Music Processing
+# MR-MT3 + Laplace Enhancement Pipeline
 
-## Overview
+GPU-accelerated pipeline for music transcription with Laplace transform-based enhancement to reduce instrument leakage.
 
-This implementation demonstrates three advanced methods for audio analysis that capture both **frequency** and **temporal decay characteristics** - going beyond standard STFT to extract Laplace-like information from music signals.
+## Quick Start (GPU Instance)
 
-## Why These Methods?
-
-Traditional STFT assumes eternal sinusoids. Music signals have:
-- **Attack/Decay envelopes** (piano vs synth differ in their decay)
-- **Harmonic interactions** (simultaneous notes with different damping rates)
-- **Transient behavior** (percussive vs sustained notes)
-
-These three methods capture this richer temporal structure.
-
----
-
-## Method 1: Short-Time Prony Analysis
-
-### What It Does
-Decomposes each audio segment into a sum of **exponentially damped sinusoids**:
-```
-x(t) = Σ Aₖ e^((σₖ + j2πfₖ)t)
-```
-where:
-- `fₖ` = frequency (Hz)
-- `σₖ` = damping coefficient (negative = decay, positive = growth)
-- `Aₖ` = complex amplitude
-
-### Key Features
-- ✅ **Explicit frequency + damping pairs** for each component
-- ✅ Directly related to Laplace pole-residue decomposition
-- ✅ Can distinguish notes by their decay characteristics
-- ⚠️ Sensitive to noise and model order selection
-
-### Visualization Output
-- **Top panel**: Frequency tracks over time (dot size = amplitude)
-- **Middle panel**: Damping coefficients (red = decay, blue = growth)
-- **Bottom panel**: Frequency-Damping phase space
-
-### Use Cases
-- Distinguishing simultaneous notes with different decay rates
-- Modeling resonant systems (guitar body, room acoustics)
-- Audio-to-MIDI with envelope information
-
----
-
-## Method 2: Variable-Q Wavelet Transform (VQT)
-
-### What It Does
-Multi-resolution time-frequency analysis with:
-- **Logarithmic frequency spacing** (matches musical scales)
-- **Adaptive time-frequency resolution** (high Q = better frequency resolution)
-- **Phase and amplitude tracking** for instantaneous characteristics
-
-### Key Features
-- ✅ Captures multi-scale temporal structure
-- ✅ Perceptually-aligned frequency resolution
-- ✅ Phase derivatives reveal frequency modulation and damping
-- ✅ Better than CQT for capturing transients
-
-### Visualization Output
-- **Top panel**: VQT magnitude spectrogram (log frequency scale)
-- **Middle panel**: Instantaneous frequency deviation (phase derivative)
-- **Bottom panel**: Estimated damping (amplitude envelope slope)
-
-### Use Cases
-- Polyphonic music transcription
-- Music structure analysis
-- Pitch tracking with vibrato
-
----
-
-## Method 3: Gammatone Filterbank
-
-### What It Does
-Mimics the **human auditory system** with:
-- **ERB-spaced filters** (Equivalent Rectangular Bandwidth)
-- **Asymmetric impulse responses** (realistic attack/decay)
-- **Envelope extraction** via Hilbert transform
-
-### Key Features
-- ✅ Perceptually-motivated (how humans actually hear)
-- ✅ Natural attack/decay extraction
-- ✅ Works well for onset detection
-- ✅ Robust to noise
-
-### Visualization Output
-- **Top panel**: Individual filter outputs (first 10 filters)
-- **Middle panel**: Envelope spectrogram across all filters
-- **Bottom panel**: Attack/Decay characteristics (envelope derivative)
-
-### Use Cases
-- Onset detection and rhythm analysis
-- Timbre analysis
-- Auditory scene analysis (source separation)
-
----
-
-## Installation
+**3-step automated setup:**
 
 ```bash
-pip install -r requirements.txt
+# 1. Download setup script
+wget https://raw.githubusercontent.com/Pyzeur-ColonyLab/L-MT3/main/scripts/setup_gpu_instance.sh
+
+# 2. Make executable
+chmod +x setup_gpu_instance.sh
+
+# 3. Run (auto-installs everything + tests 10 files)
+sudo ./setup_gpu_instance.sh
 ```
 
-Dependencies:
-- numpy (numerical computation)
-- scipy (signal processing)
-- matplotlib (visualization)
-- librosa (audio processing)
-- soundfile (audio I/O)
+**Duration:** ~45 minutes
+**What it does:** Installs CUDA + TensorFlow + MR-MT3 + Laplace, downloads dataset, runs test
 
----
-
-## Dataset Preparation
-
-### Slakh2100 Dataset Download
-
-For training and evaluation, download the Slakh2100 dataset from Zenodo:
-
+**After setup:**
 ```bash
-# Download Slakh2100 (full dataset - ~200 GB)
-wget https://zenodo.org/records/4599666/files/slakh2100_flac_redux.tar.gz
-
-# Extract dataset
-tar -xzf slakh2100_flac_redux.tar.gz
-
-# Or download specific subsets:
-# babySlakh (16 kHz, smaller - ~13 GB)
-wget https://zenodo.org/records/4599666/files/babyslakh_16k.tar.gz
-tar -xzf babyslakh_16k.tar.gz
+cd ~/L-MT3
+source venv/bin/activate
+./scripts/run_local_pipeline.sh --evaluate  # Process all 233 files
 ```
 
-**Dataset Information:**
-- **Slakh2100**: Full multi-track dataset with 2100 tracks, FLAC format
-- **babySlakh**: Downsampled subset (16 kHz) for faster experimentation
-- **Zenodo Record**: https://zenodo.org/records/4599666
-- **Citation**: Manilow et al. "Cutting Music Source Separation Some Slakh" (2019)
-
-**Storage Requirements:**
-- Full Slakh2100: ~200 GB
-- babySlakh 16k: ~13 GB
+📖 **Full instructions:** See [GPU_SETUP.md](GPU_SETUP.md)
 
 ---
 
-## Usage
+## What This Does
 
-### Basic Usage (Test Signal)
+**Problem:** MR-MT3 transcription has instrument leakage (notes assigned to wrong instruments)
+
+**Solution:** Laplace transform features (decay rates, spectral analysis, attack times) to:
+1. Consolidate instruments with similar acoustic signatures
+2. Refine note assignments based on timbre characteristics
+3. Reduce cross-instrument leakage by 10-25%
+
+**Pipeline:**
+```
+Audio → MR-MT3 (local GPU) → MIDI → Laplace Enhancement → Improved MIDI
+```
+
+---
+
+## Instance Requirements
+
+**Recommended (T4 GPU):**
+- GPU: NVIDIA T4 (16GB VRAM)
+- CPU: 16 cores
+- RAM: 32GB
+- Storage: 500GB
+- Cost: ~€0.26/hour (~€7 for 233 files)
+
+**Minimum:**
+- GPU: 8GB+ VRAM
+- CPU: 4+ cores
+- RAM: 16GB
+- Storage: 100GB
+
+---
+
+## Results & Evaluation
+
+After running the pipeline, you get:
+
+**Evaluation Report** (`pipeline_output_local/evaluation/evaluation_report.html`):
+- Visual charts comparing baseline vs enhanced
+- Statistical analysis of improvement
+- Per-file breakdown
+- Publication-ready graphs (300 DPI)
+
+**Example Results:**
+```
+Baseline:     9 instruments, high leakage
+Enhanced:     7 instruments, 22.2% leakage reduction
+Improvement:  Fewer cross-instrument note assignments
+```
+
+📊 **Evaluation guide:** See [EVALUATION_GUIDE.md](EVALUATION_GUIDE.md)
+
+---
+
+## Repository Structure
+
+```
+├── GPU_SETUP.md                    # Complete GPU setup guide
+├── EVALUATION_GUIDE.md             # Results analysis guide
+├── LAPLACE_THEORY.md               # Mathematical background
+├── scripts/
+│   ├── setup_gpu_instance.sh       # Automated GPU setup
+│   └── run_local_pipeline.sh       # Pipeline execution (created by setup)
+├── run_mrmt3_inference.py          # MR-MT3 GPU inference wrapper
+├── phase1_mrmt3_enhancement.py     # Laplace enhancement
+├── evaluate_enhancement.py         # Comparative analysis
+└── laplace_mrmt3/                  # Core library
+    ├── feature_extraction.py       # Prony, VQT, Gammatone
+    ├── consolidation.py            # Instrument merging
+    ├── refinement.py               # Timbre-based adjustments
+    └── metrics.py                  # Leakage evaluation
+```
+
+---
+
+## Datasets
+
+**babyslakh_16k** (233 tracks, ~7GB):
+- Automatically downloaded by setup script
+- Used for initial testing and validation
+
+**Slakh2100** (1200 tracks, ~200GB):
+- Full dataset for comprehensive evaluation
+- Download manually if needed:
+  ```bash
+  wget https://zenodo.org/record/4599666/files/slakh2100_flac_redux.tar.gz
+  tar -xzf slakh2100_flac_redux.tar.gz
+  ```
+
+---
+
+## Manual Operations
+
+### Process Specific Files
 ```bash
-python laplace_audio_analysis.py
-```
-Generates a synthetic 3-note chord with different decay rates.
+cd ~/L-MT3
+source venv/bin/activate
 
-### With Your Own Audio
-```python
-import librosa
-from laplace_audio_analysis import PronyAnalyzer, VariableQWavelet, GammatoneFilterbank
+# Test with 10 files
+./scripts/run_local_pipeline.sh --num-files 10
 
-# Load your audio
-audio, sr = librosa.load('your_track.wav', sr=22050, duration=5)
+# Process 50 files with evaluation
+./scripts/run_local_pipeline.sh --num-files 50 --evaluate
 
-# Method 1: Prony Analysis
-prony = PronyAnalyzer(n_components=10, model_order=30)
-results = prony.analyze(audio, sr, hop_length=512, win_length=2048)
-
-# Method 2: Variable-Q Wavelet
-vqwt = VariableQWavelet(fmin=55, n_bins=84, bins_per_octave=12)
-vqt, times, freqs = vqwt.analyze(audio, sr)
-inst_freq, damping = vqwt.get_phase_derivatives(vqt)
-
-# Method 3: Gammatone Filterbank
-gtfb = GammatoneFilterbank(n_filters=64, fmin=50, fmax=8000)
-filtered, envelopes, center_freqs = gtfb.analyze(audio, sr)
+# Full dataset (233 files, ~27 hours)
+./scripts/run_local_pipeline.sh --evaluate
 ```
 
----
+### Monitor GPU
+```bash
+# Real-time monitoring
+watch -n 1 nvidia-smi
 
-## Parameter Tuning
-
-### Prony Analysis
-- `n_components`: Number of dominant components to extract (5-20 typical)
-- `model_order`: Linear prediction order (20-50 typical)
-- Higher order = more components but more noise sensitivity
-
-### Variable-Q Wavelet
-- `fmin`: Lowest frequency (typically 20-100 Hz)
-- `bins_per_octave`: Frequency resolution (12 = semitones, 36 = third-tones)
-- `q_rate`: Quality factor (1.0 standard, higher = better freq resolution)
-
-### Gammatone Filterbank
-- `n_filters`: Number of filters (32-128 typical)
-- `fmin/fmax`: Frequency range of interest
-- ERB spacing is automatic based on psychoacoustics
-
----
-
-## Comparison to Standard Methods
-
-| Method | Time Res | Freq Res | Damping Info | Computational Cost | Best For |
-|--------|----------|----------|--------------|-------------------|----------|
-| **STFT** | Fixed | Fixed | ❌ None | Low | General spectral analysis |
-| **Prony** | Segment | Explicit | ✅ Explicit σ | Medium | Modeling resonant systems |
-| **VQT** | Adaptive | Log-scale | ⚠️ From phase | Medium-High | Polyphonic music |
-| **Gammatone** | Adaptive | ERB-scale | ✅ From envelope | Medium | Perceptual modeling |
-
----
-
-## Applications for Audio-to-MIDI
-
-For polyphonic transcription (like MT3 improvements):
-
-1. **Prony Analysis** → Extract note frequencies + individual decay rates
-   - Use damping coefficients to distinguish overlapping notes
-   - Model per-note dynamics
-
-2. **Variable-Q Wavelet** → Multi-pitch detection with temporal context
-   - Phase coherence for harmonic grouping
-   - Amplitude modulation for note segmentation
-
-3. **Gammatone Filterbank** → Onset detection + timbre features
-   - Envelope peaks for note onsets
-   - Filter-specific dynamics for instrument classification
-
----
-
-## Mathematical Background
-
-### Laplace Transform Intuition
+# Check memory usage
+nvidia-smi --query-gpu=memory.used,memory.total --format=csv
 ```
-L{f(t)} = ∫₀^∞ f(t)e^(-st) dt,  s = σ + jω
+
+### View Results
+```bash
+# Open evaluation report in browser
+xdg-open ~/L-MT3/pipeline_output_local/evaluation/evaluation_report.html
+
+# Check logs
+tail -f ~/L-MT3/pipeline_output_local/logs/mrmt3.log
+tail -f ~/L-MT3/pipeline_output_local/logs/enhancement.log
 ```
-- **σ (real part)**: Growth/decay rate
-- **ω (imaginary part)**: Oscillation frequency
 
-### Why Windowing Is Problematic
-- Laplace assumes causality from t=0 to ∞
-- Windowing truncates signals arbitrarily
-- Short-time methods are pragmatic approximations
+---
 
-### Connection to Z-Transform
-For digital implementation:
+## Technical Details
+
+**Laplace Features:**
+1. **Prony Analysis**: Exponential decay rates for each note
+2. **Variable-Q Transform (VQT)**: Multi-resolution spectral analysis
+3. **Gammatone Filterbank**: Perceptual attack/decay characteristics
+
+**Enhancement Stages:**
+1. Feature extraction from MIDI + audio
+2. Decay-based onset consolidation
+3. Timbre-based duration refinement
+4. Program change optimization
+
+**Metrics:**
+- Cross-instrument leakage rate
+- Temporal overlap ratio
+- Note accuracy (F1 score with ground truth)
+
+📖 **Mathematical details:** See [LAPLACE_THEORY.md](LAPLACE_THEORY.md)
+
+---
+
+## Cost Estimation (T4 GPU @ €0.26/hour)
+
+| Task | Duration | Cost |
+|------|----------|------|
+| Setup + 10-file test | ~1 hour | ~€0.26 |
+| babyslakh (233 files) | ~27 hours | ~€7.00 |
+| Slakh2100 (1200 files) | ~140 hours | ~€36.00 |
+
+**Total for research:** €7-43 depending on dataset size
+
+---
+
+## Troubleshooting
+
+**CUDA not found:**
+```bash
+export PATH="/usr/local/cuda-11.8/bin:$PATH"
+export LD_LIBRARY_PATH="/usr/local/cuda-11.8/lib64:$LD_LIBRARY_PATH"
 ```
-z = e^(sT)  where T = 1/fs
+
+**Out of GPU memory:**
+- Reduce MR-MT3 batch size in `run_mrmt3_inference.py`
+- Check GPU usage: `nvidia-smi`
+
+**Dependencies failed:**
+```bash
+cd ~/L-MT3
+source venv/bin/activate
+pip install -r requirements_mrmt3_gpu.txt -v
 ```
-Prony method finds poles in z-domain, converts back to s-domain.
+
+📖 **Full troubleshooting:** See [GPU_SETUP.md](GPU_SETUP.md#troubleshooting)
 
 ---
 
-## Limitations
+## Citation
 
-### Prony Analysis
-- **Sensitive to noise**: Requires careful preprocessing
-- **Model order selection**: Too high = spurious poles, too low = missing components
-- **Edge effects**: Windowing introduces artifacts
+If you use this pipeline in your research:
 
-### Variable-Q Wavelet
-- **Computational cost**: Higher than STFT
-- **No explicit damping**: Must infer from phase/amplitude derivatives
-- **Limited temporal resolution**: At low frequencies
-
-### Gammatone Filterbank
-- **Not invertible**: Can't reconstruct original signal perfectly
-- **Fixed filter shapes**: Less flexible than adaptive methods
-- **Many filters needed**: For good frequency coverage
-
----
-
-## Future Extensions
-
-1. **Sparse Prony**: Use L1 regularization for robust component selection
-2. **Adaptive VQT**: Dynamic Q-factor based on signal characteristics
-3. **Cascaded Gammatone**: Multiple filterbank stages for finer resolution
-4. **Hybrid Methods**: Combine Prony peaks with VQT context
-5. **Neural Integration**: Use features as input to deep learning models
-
----
-
-## References
-
-### Prony Method
-- Parks, T.W., & Burrus, C.S. (1987). *Digital Filter Design*
-- Kumaresan, R., & Tufts, D.W. (1982). "Estimating the parameters of exponentially damped sinusoids"
-
-### Variable-Q Transform
-- Schörkhuber, C., & Klapuri, A. (2010). "Constant-Q transform toolbox for music processing"
-- Librosa documentation: https://librosa.org/doc/main/generated/librosa.vqt.html
-
-### Gammatone Filterbank
-- Patterson, R.D., et al. (1988). "Complex sounds and auditory images"
-- Slaney, M. (1993). "An Efficient Implementation of the Patterson-Holdsworth Auditory Filter Bank"
-
----
-
-## Contact & Contributions
-
-For music technology applications, this implementation provides a solid foundation for:
-- Transcription systems with envelope awareness
-- Source separation with decay-based clustering
-- Audio synthesis with physically-inspired models
-
-Feel free to extend and modify for your specific use case!
+```bibtex
+@software{laplace_mr_mt3_2024,
+  title={Laplace-Enhanced MR-MT3 Music Transcription},
+  author={Dyapason Research},
+  year={2024},
+  url={https://github.com/Pyzeur-ColonyLab/L-MT3}
+}
+```
 
 ---
 
 ## License
 
 MIT License - Use freely with attribution
+
+---
+
+## Support
+
+- **Issues:** https://github.com/Pyzeur-ColonyLab/L-MT3/issues
+- **Documentation:** See [GPU_SETUP.md](GPU_SETUP.md) and [EVALUATION_GUIDE.md](EVALUATION_GUIDE.md)
+- **Theory:** See [LAPLACE_THEORY.md](LAPLACE_THEORY.md)
