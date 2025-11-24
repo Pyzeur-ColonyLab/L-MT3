@@ -191,22 +191,14 @@ source venv/bin/activate
 log_info "Upgrading pip..."
 pip install --upgrade pip setuptools wheel -q
 
-log_info "Installing TensorFlow 2.11 with GPU support..."
-pip install tensorflow==2.11.0 -q
-
-log_info "Installing JAX with CUDA 11 support..."
-pip install "jax[cuda11_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html -q
+log_info "Installing PyTorch with CUDA 11.8 support..."
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 -q
 
 log_info "Installing MR-MT3 requirements..."
 cat > "$WORK_DIR/requirements_mrmt3_gpu.txt" << 'EOF'
-# MR-MT3 Core
-note-seq==0.0.5
-mt3==0.1.0
-
-# Scientific Computing - PINNED FOR TENSORFLOW 2.11.0 COMPATIBILITY
-# CRITICAL: TensorFlow 2.11.0 requires numpy<1.24
-numpy>=1.20.0,<1.24.0
-scipy>=1.7.0,<1.11.0
+# Scientific Computing (PyTorch compatible)
+numpy>=1.20.0,<2.0.0
+scipy>=1.7.0,<1.15.0
 
 # Audio Processing
 librosa>=0.10.0,<0.11.0
@@ -221,25 +213,18 @@ soxr>=0.3.0,<0.4.0
 # MIDI Processing
 pretty-midi>=0.2.10,<0.3.0
 mido>=1.3.0,<2.0.0
+note-seq==0.0.5
 
-# TensorFlow Ecosystem
-protobuf>=3.19.0,<3.20.0
-tensorflow-metadata>=0.14.0,<1.15.0
-tensorflow-datasets>=4.5.2,<4.10.0
-gin-config>=0.5.0,<0.6.0
-seqio>=0.0.18,<0.1.0
-absl-py>=0.13.0,<2.0.0
-grpcio>=1.48.0,<2.0.0
-h5py>=3.7.0,<4.0.0
-dill>=0.3.4,<0.4.0
+# MR-MT3 Dependencies
+transformers>=4.25.0,<5.0.0
+einops>=0.6.0,<1.0.0
 
 # Numba (JIT Compilation)
-# CRITICAL: numba 0.57.x is last version supporting numpy<1.24
-numba>=0.57.0,<0.58.0
-llvmlite>=0.40.0,<0.41.0
+numba>=0.57.0,<0.60.0
+llvmlite>=0.40.0,<0.43.0
 
 # Machine Learning Utilities
-scikit-learn>=1.2.0,<1.4.0
+scikit-learn>=1.2.0,<1.6.0
 joblib>=1.3.0,<2.0.0
 
 # Visualization & Utilities
@@ -253,27 +238,54 @@ pip install -r "$WORK_DIR/requirements_mrmt3_gpu.txt"
 log_success "Python dependencies installed"
 
 ################################################################################
-# 6. Download MR-MT3 Model
+# 6. Setup MR-MT3 Model
 ################################################################################
 
-log_section "Step 6/8: Downloading MR-MT3 Pre-trained Model"
+log_section "Step 6/8: Setting Up MR-MT3 Model"
 
-MODEL_DIR="$WORK_DIR/models"
-MODEL_PATH="$MODEL_DIR/mr-mt3-single-instrument.ckpt"
+MR_MT3_DIR="$WORK_DIR/models/mr-mt3"
+mkdir -p "$MR_MT3_DIR"
 
-if [ -f "$MODEL_PATH" ]; then
-    log_warning "Model already exists at $MODEL_PATH"
+# Clone MR-MT3 repository
+log_info "Cloning MR-MT3 repository..."
+if [ ! -d "$MR_MT3_DIR/MR-MT3" ]; then
+    cd "$MR_MT3_DIR"
+    sudo -u $ACTUAL_USER git clone https://github.com/gudgud96/MR-MT3.git
+    log_success "Repository cloned"
 else
-    log_info "Creating models directory..."
-    mkdir -p "$MODEL_DIR"
-
-    log_info "Downloading MR-MT3 checkpoint (400MB)..."
-    cd "$MODEL_DIR"
-    sudo -u $ACTUAL_USER wget -q --show-progress \
-        "https://storage.googleapis.com/magentadata/models/mr-mt3/checkpoints/mr-mt3-single-instrument.ckpt"
-
-    log_success "Model downloaded: $(du -h $MODEL_PATH | cut -f1)"
+    log_warning "Repository already exists"
 fi
+
+# Download model checkpoint
+log_info "Downloading MR-MT3 checkpoint (~400MB)..."
+cd "$MR_MT3_DIR"
+if [ ! -f "mt3.pth" ]; then
+    sudo -u $ACTUAL_USER wget -q --show-progress \
+        https://huggingface.co/gudgud1014/MR-MT3/resolve/main/slakh_f1_0.65.pth \
+        -O mt3.pth
+    log_success "Model checkpoint downloaded"
+else
+    log_warning "Model checkpoint already exists"
+fi
+
+# Download config
+log_info "Downloading model configuration..."
+if [ ! -f "config.json" ]; then
+    sudo -u $ACTUAL_USER wget -q --show-progress \
+        https://raw.githubusercontent.com/kunato/mt3-pytorch/master/config/mt3_config.json \
+        -O config.json
+    log_success "Configuration downloaded"
+else
+    log_warning "Configuration already exists"
+fi
+
+# Setup config in MR-MT3
+log_info "Setting up config in MR-MT3 repository..."
+mkdir -p "MR-MT3/config"
+cp config.json MR-MT3/config/mt3_config.json
+log_success "Configuration setup complete"
+
+log_success "MR-MT3 model ready at $MR_MT3_DIR"
 
 ################################################################################
 # 7. Create Local Pipeline Script
