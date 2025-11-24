@@ -244,7 +244,7 @@ log_success "Python dependencies installed"
 log_section "Step 6/8: Setting Up MR-MT3 Model"
 
 MR_MT3_DIR="$WORK_DIR/models/mr-mt3"
-mkdir -p "$MR_MT3_DIR"
+sudo -u $ACTUAL_USER mkdir -p "$MR_MT3_DIR"
 
 # Clone MR-MT3 repository
 log_info "Cloning MR-MT3 repository..."
