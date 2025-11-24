@@ -40,6 +40,8 @@ def run_inference(model_path: str, audio_path: str, output_path: str, device: st
     try:
         # Import PyTorch and check GPU availability
         import torch
+        import librosa
+        import numpy as np
 
         if device == 'cuda' and not torch.cuda.is_available():
             logger.warning("CUDA requested but not available, falling back to CPU")
@@ -63,93 +65,72 @@ def run_inference(model_path: str, audio_path: str, output_path: str, device: st
         logger.info(f"Loading model from: {model_path}")
         logger.info(f"Processing audio: {audio_path}")
 
-        # Attempt to use MR-MT3 repository inference
-        try:
-            # Get MR-MT3 repository path
-            model_dir = Path(model_path).parent
-            mr_mt3_repo = model_dir / "MR-MT3"
+        # Get MR-MT3 repository path and patches
+        model_dir = Path(model_path).parent
+        mr_mt3_repo = model_dir / "MR-MT3"
 
-            if not mr_mt3_repo.exists():
-                raise ImportError(f"MR-MT3 repository not found at {mr_mt3_repo}")
+        # Get script directory for patches
+        script_dir = Path(__file__).parent
+        patches_dir = script_dir / "mr_mt3_patches"
 
-            # Add MR-MT3 to Python path
+        # Prefer patched inference over repository version
+        if patches_dir.exists():
+            logger.info("Using patched MR-MT3 inference module...")
+            sys.path.insert(0, str(patches_dir))
+        elif mr_mt3_repo.exists():
+            logger.info("Using MR-MT3 repository inference module...")
+            sys.path.insert(0, str(mr_mt3_repo))
+        else:
+            logger.error(f"Neither patches ({patches_dir}) nor MR-MT3 repo ({mr_mt3_repo}) found")
+            logger.error("Please ensure MR-MT3 is properly set up")
+            return False
+
+        # Also add MR-MT3 repo to path for dependencies
+        if mr_mt3_repo.exists():
             sys.path.insert(0, str(mr_mt3_repo))
 
-            # Import MR-MT3 modules
-            logger.info("Attempting to load MR-MT3 modules...")
+        # Import MR-MT3 inference handler
+        logger.info("Loading InferenceHandler...")
 
-            # Try to import inference module from MR-MT3
-            try:
-                from inference import inference_single_file
+        try:
+            from inference import InferenceHandler
 
-                # Run inference using MR-MT3's API
-                logger.info("Running MR-MT3 inference...")
-                inference_single_file(
-                    model_path=model_path,
-                    audio_path=audio_path,
-                    output_path=output_path,
-                    device=device
-                )
+            # Initialize handler
+            logger.info("Initializing InferenceHandler...")
+            handler = InferenceHandler(
+                weight_path=model_path,
+                device=torch.device(device)
+            )
 
-                logger.info(f"Transcription saved to: {output_path}")
-                return True
+            # Load and preprocess audio
+            logger.info(f"Loading audio at 16kHz mono...")
+            audio, sr = librosa.load(audio_path, sr=16000, mono=True)
 
-            except ImportError as e:
-                logger.warning(f"Could not import MR-MT3 inference module: {e}")
-                raise
+            # Run inference
+            logger.info("Running MR-MT3 inference...")
+            handler.inference(audio, audio_path, outpath=output_path)
+
+            # Verify output
+            if not os.path.exists(output_path):
+                logger.error(f"MIDI file was not created at {output_path}")
+                return False
+
+            logger.info(f"Transcription saved to: {output_path}")
+            return True
+
+        except ImportError as e:
+            logger.error(f"Failed to import MR-MT3 inference module: {e}")
+            logger.error("The MR-MT3 repository may be missing or corrupted")
+            return False
 
         except Exception as e:
-            logger.warning(f"MR-MT3 inference failed: {e}")
-            logger.info("Attempting fallback with basic-pitch...")
-
-            # Fallback: Use basic-pitch if available
-            try:
-                from basic_pitch.inference import predict
-                from basic_pitch import ICASSP_2022_MODEL_PATH
-                import pretty_midi
-
-                logger.info("Using basic-pitch for transcription...")
-
-                # Run basic-pitch
-                model_output, midi_data, note_events = predict(
-                    audio_path,
-                    ICASSP_2022_MODEL_PATH
-                )
-
-                # Save MIDI
-                midi_data.write(output_path)
-                logger.warning(f"Used basic-pitch fallback - saved to: {output_path}")
-                return True
-
-            except ImportError:
-                logger.error("basic-pitch not available for fallback")
-
-            # Last resort: Create empty MIDI
-            logger.warning("Creating empty MIDI file as last resort...")
-            try:
-                import pretty_midi
-
-                # Create empty MIDI sequence
-                midi = pretty_midi.PrettyMIDI()
-
-                # Add a single piano instrument with no notes
-                # This ensures the file is valid but clearly shows no transcription occurred
-                piano_program = pretty_midi.instrument_name_to_program('Acoustic Grand Piano')
-                piano = pretty_midi.Instrument(program=piano_program)
-                midi.instruments.append(piano)
-
-                # Save empty MIDI
-                midi.write(output_path)
-                logger.error(f"Saved empty MIDI file - MR-MT3 inference not functional: {output_path}")
-                logger.error("Please ensure MR-MT3 repository has proper inference module")
-                return False
-
-            except Exception as e:
-                logger.error(f"Failed to create fallback MIDI: {e}")
-                return False
+            logger.error(f"Inference failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
 
     except Exception as e:
-        logger.error(f"Inference failed: {e}")
+        logger.error(f"Setup failed: {e}")
         import traceback
         traceback.print_exc()
         return False
