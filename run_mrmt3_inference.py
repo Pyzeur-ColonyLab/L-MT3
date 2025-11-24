@@ -65,29 +65,18 @@ def run_inference(model_path: str, audio_path: str, output_path: str, device: st
         logger.info(f"Loading model from: {model_path}")
         logger.info(f"Processing audio: {audio_path}")
 
-        # Get MR-MT3 repository path and patches
+        # Get MR-MT3 repository path
         model_dir = Path(model_path).parent
         mr_mt3_repo = model_dir / "MR-MT3"
 
-        # Get script directory for patches
-        script_dir = Path(__file__).parent
-        patches_dir = script_dir / "mr_mt3_patches"
-
-        # Prefer patched inference over repository version
-        if patches_dir.exists():
-            logger.info("Using patched MR-MT3 inference module...")
-            sys.path.insert(0, str(patches_dir))
-        elif mr_mt3_repo.exists():
-            logger.info("Using MR-MT3 repository inference module...")
-            sys.path.insert(0, str(mr_mt3_repo))
-        else:
-            logger.error(f"Neither patches ({patches_dir}) nor MR-MT3 repo ({mr_mt3_repo}) found")
-            logger.error("Please ensure MR-MT3 is properly set up")
+        if not mr_mt3_repo.exists():
+            logger.error(f"MR-MT3 repository not found at {mr_mt3_repo}")
+            logger.error("Please ensure MR-MT3 is cloned in the models directory")
             return False
 
-        # Also add MR-MT3 repo to path for dependencies
-        if mr_mt3_repo.exists():
-            sys.path.insert(0, str(mr_mt3_repo))
+        # Add MR-MT3 repo to Python path
+        logger.info("Using MR-MT3 repository (with patched inference)...")
+        sys.path.insert(0, str(mr_mt3_repo))
 
         # Import MR-MT3 inference handler
         logger.info("Loading InferenceHandler...")

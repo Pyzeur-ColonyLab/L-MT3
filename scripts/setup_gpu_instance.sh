@@ -285,6 +285,15 @@ mkdir -p "MR-MT3/config"
 cp config.json MR-MT3/config/mt3_config.json
 log_success "Configuration setup complete"
 
+# Apply patched inference.py
+log_info "Applying patched inference.py..."
+if [ -f "$WORK_DIR/mr_mt3_patches/inference.py" ]; then
+    cp "$WORK_DIR/mr_mt3_patches/inference.py" MR-MT3/inference.py
+    log_success "Patched inference.py deployed"
+else
+    log_warning "Patched inference.py not found, using repository version"
+fi
+
 log_success "MR-MT3 model ready at $MR_MT3_DIR"
 
 ################################################################################
