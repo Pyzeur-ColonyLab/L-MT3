@@ -132,34 +132,23 @@ else
 fi
 
 ################################################################################
-# 3. Setup Repository
+# 3. Detect Repository Directory
 ################################################################################
 
-log_section "Step 3/8: Setting Up L-MT3 Repository"
+log_section "Step 3/8: Detecting Repository Directory"
 
-# Check if we're already in the L-MT3 repository
+# Detect working directory from script location
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ "$SCRIPT_DIR" == *"/L-MT3/scripts" ]] || [[ -f "$SCRIPT_DIR/../phase1_mrmt3_enhancement.py" ]]; then
-    WORK_DIR="$(dirname "$SCRIPT_DIR")"
-    log_info "Running from existing repository at $WORK_DIR"
-    cd "$WORK_DIR"
-    sudo -u $ACTUAL_USER git pull
-else
-    # Not in repo, need to clone
-    WORK_DIR="$USER_HOME/L-MT3"
-    if [ -d "$WORK_DIR" ]; then
-        log_warning "Repository already exists at $WORK_DIR"
-        cd "$WORK_DIR"
-        sudo -u $ACTUAL_USER git pull
-    else
-        log_info "Cloning from GitHub..."
-        cd "$USER_HOME"
-        sudo -u $ACTUAL_USER git clone https://github.com/Pyzeur-ColonyLab/L-MT3.git
-        cd "$WORK_DIR"
-    fi
+WORK_DIR="$(dirname "$SCRIPT_DIR")"
+
+log_info "Working directory: $WORK_DIR"
+
+if [ ! -f "$WORK_DIR/phase1_mrmt3_enhancement.py" ]; then
+    log_error "Not running from L-MT3 repository! Please run from repo: sudo ./scripts/setup_gpu_instance.sh"
+    exit 1
 fi
 
-log_success "Repository ready at $WORK_DIR"
+log_success "Repository detected at $WORK_DIR"
 
 ################################################################################
 # 4. Download Dataset
