@@ -194,14 +194,12 @@ pip install --upgrade pip setuptools wheel -q
 log_info "Installing TensorFlow 2.11 with GPU support..."
 pip install tensorflow==2.11.0 -q
 
+log_info "Installing JAX with CUDA 11 support..."
+pip install "jax[cuda11_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html -q
+
 log_info "Installing MR-MT3 requirements..."
 cat > "$WORK_DIR/requirements_mrmt3_gpu.txt" << 'EOF'
-# TensorFlow and JAX for GPU
-tensorflow==2.11.0
-jax[cuda11_cudnn82]==0.4.1
-jaxlib==0.4.1+cuda11.cudnn82
-
-# MR-MT3 Core
+# MR-MT3 Core (note: do not include tensorflow or jax here, installed separately)
 note-seq==0.0.5
 mt3==0.1.0
 
