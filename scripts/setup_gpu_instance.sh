@@ -93,6 +93,7 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
     build-essential \
     python3.10 \
     python3.10-dev \
+    python3.10-venv \
     python3-pip \
     ffmpeg \
     libsndfile1 \
@@ -151,28 +152,30 @@ fi
 log_success "Repository detected at $WORK_DIR"
 
 ################################################################################
-# 4. Download Dataset
+# 4. Download Dataset (COMMENTED OUT - Manually clone and extract dataset)
 ################################################################################
 
-log_section "Step 4/8: Downloading babyslakh_16k Dataset"
+# log_section "Step 4/8: Downloading babyslakh_16k Dataset"
+#
+# DATASET_DIR="$WORK_DIR/babyslakh_16k"
+#
+# if [ -d "$DATASET_DIR" ]; then
+#     log_warning "Dataset already exists at $DATASET_DIR"
+# else
+#     log_info "Downloading babyslakh_16k (7GB)..."
+#     cd "$WORK_DIR"
+#     sudo -u $ACTUAL_USER wget -q --show-progress \
+#         https://zenodo.org/record/4599666/files/babyslakh_16k.tar.gz
+#
+#     log_info "Extracting dataset..."
+#     sudo -u $ACTUAL_USER tar -xzf babyslakh_16k.tar.gz
+#     rm babyslakh_16k.tar.gz
+#
+#     TRACK_COUNT=$(find "$DATASET_DIR" -name "mix.wav" | wc -l)
+#     log_success "Dataset extracted: $TRACK_COUNT tracks"
+# fi
 
-DATASET_DIR="$WORK_DIR/babyslakh_16k"
-
-if [ -d "$DATASET_DIR" ]; then
-    log_warning "Dataset already exists at $DATASET_DIR"
-else
-    log_info "Downloading babyslakh_16k (7GB)..."
-    cd "$WORK_DIR"
-    sudo -u $ACTUAL_USER wget -q --show-progress \
-        https://zenodo.org/record/4599666/files/babyslakh_16k.tar.gz
-
-    log_info "Extracting dataset..."
-    sudo -u $ACTUAL_USER tar -xzf babyslakh_16k.tar.gz
-    rm babyslakh_16k.tar.gz
-
-    TRACK_COUNT=$(find "$DATASET_DIR" -name "mix.wav" | wc -l)
-    log_success "Dataset extracted: $TRACK_COUNT tracks"
-fi
+log_info "Skipping dataset download (assumes babyslakh_16k/ already exists)"
 
 ################################################################################
 # 5. Install MR-MT3 Dependencies
