@@ -199,37 +199,53 @@ pip install "jax[cuda11_pip]" -f https://storage.googleapis.com/jax-releases/jax
 
 log_info "Installing MR-MT3 requirements..."
 cat > "$WORK_DIR/requirements_mrmt3_gpu.txt" << 'EOF'
-# MR-MT3 Core (note: do not include tensorflow or jax here, installed separately)
+# MR-MT3 Core
 note-seq==0.0.5
 mt3==0.1.0
 
+# Scientific Computing - PINNED FOR TENSORFLOW 2.11.0 COMPATIBILITY
+# CRITICAL: TensorFlow 2.11.0 requires numpy<1.24
+numpy>=1.20.0,<1.24.0
+scipy>=1.7.0,<1.11.0
+
 # Audio Processing
 librosa>=0.10.0,<0.11.0
-soundfile>=0.12.0
-audioread>=3.0.0
+soundfile>=0.12.0,<0.14.0
+audioread>=3.0.0,<4.0.0
+resampy>=0.4.0,<0.5.0
+pooch>=1.6.0,<2.0.0
+lazy-loader>=0.3,<0.4
+msgpack>=1.0,<2.0
+soxr>=0.3.0,<0.4.0
 
 # MIDI Processing
-pretty-midi>=0.2.10
-mido>=1.3.0
+pretty-midi>=0.2.10,<0.3.0
+mido>=1.3.0,<2.0.0
 
-# Scientific Computing (numpy<2.0 for compatibility)
-numpy>=1.24.0,<2.0.0
-scipy>=1.10.0,<1.15.0
-
-# Compatibility
+# TensorFlow Ecosystem
 protobuf>=3.19.0,<3.20.0
-tensorflow-metadata<1.10
-tensorflow-datasets>=4.5.2,<4.6.0
+tensorflow-metadata>=0.14.0,<1.15.0
+tensorflow-datasets>=4.5.2,<4.10.0
+gin-config>=0.5.0,<0.6.0
+seqio>=0.0.18,<0.1.0
+absl-py>=0.13.0,<2.0.0
+grpcio>=1.48.0,<2.0.0
+h5py>=3.7.0,<4.0.0
 dill>=0.3.4,<0.4.0
 
-# Laplace Enhancement
+# Numba (JIT Compilation)
+# CRITICAL: numba 0.57.x is last version supporting numpy<1.24
+numba>=0.57.0,<0.58.0
+llvmlite>=0.40.0,<0.41.0
+
+# Machine Learning Utilities
+scikit-learn>=1.2.0,<1.4.0
+joblib>=1.3.0,<2.0.0
+
+# Visualization & Utilities
 matplotlib>=3.7.0,<4.0.0
-PyYAML>=6.0
-tqdm>=4.65.0
-numba>=0.57.0,<0.60.0
-scikit-learn>=1.3.0,<1.6.0
-joblib>=1.3.0
-soxr>=0.3.0
+PyYAML>=6.0,<7.0
+tqdm>=4.65.0,<5.0.0
 EOF
 
 pip install -r "$WORK_DIR/requirements_mrmt3_gpu.txt"
