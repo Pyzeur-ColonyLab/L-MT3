@@ -132,22 +132,31 @@ else
 fi
 
 ################################################################################
-# 3. Clone Repository
+# 3. Setup Repository
 ################################################################################
 
-log_section "Step 3/8: Cloning L-MT3 Repository"
+log_section "Step 3/8: Setting Up L-MT3 Repository"
 
-WORK_DIR="$USER_HOME/L-MT3"
-
-if [ -d "$WORK_DIR" ]; then
-    log_warning "Repository already exists at $WORK_DIR"
+# Check if we're already in the L-MT3 repository
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "$SCRIPT_DIR" == *"/L-MT3/scripts" ]] || [[ -f "$SCRIPT_DIR/../phase1_mrmt3_enhancement.py" ]]; then
+    WORK_DIR="$(dirname "$SCRIPT_DIR")"
+    log_info "Running from existing repository at $WORK_DIR"
     cd "$WORK_DIR"
     sudo -u $ACTUAL_USER git pull
 else
-    log_info "Cloning from GitHub..."
-    cd "$USER_HOME"
-    sudo -u $ACTUAL_USER git clone https://github.com/Pyzeur-ColonyLab/L-MT3.git
-    cd "$WORK_DIR"
+    # Not in repo, need to clone
+    WORK_DIR="$USER_HOME/L-MT3"
+    if [ -d "$WORK_DIR" ]; then
+        log_warning "Repository already exists at $WORK_DIR"
+        cd "$WORK_DIR"
+        sudo -u $ACTUAL_USER git pull
+    else
+        log_info "Cloning from GitHub..."
+        cd "$USER_HOME"
+        sudo -u $ACTUAL_USER git clone https://github.com/Pyzeur-ColonyLab/L-MT3.git
+        cd "$WORK_DIR"
+    fi
 fi
 
 log_success "Repository ready at $WORK_DIR"
