@@ -59,8 +59,10 @@ def run_inference(model_path: str, audio_path: str, output_path: str, device: st
             logger.error(f"Audio file not found: {audio_path}")
             return False
 
-        # Create output directory
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        # Create output directory if needed
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
 
         logger.info(f"Loading model from: {model_path}")
         logger.info(f"Processing audio: {audio_path}")
