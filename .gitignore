@@ -98,3 +98,9 @@ docs/_build/
 
 # Claude Code
 .claude/settings.local.json
+.claude/
+organized_tracks*/
+._*
+music-to-midi-api/
+research/
+mr-mt3/
