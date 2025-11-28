@@ -29,6 +29,8 @@ import numpy as np
 import pretty_midi
 import librosa
 
+from metrics_recorder import MetricsRecorder
+
 # Laplace enhancement modules
 from laplace_mrmt3.config import EnhancementConfig
 from laplace_mrmt3.features import extract_features_from_midi
@@ -389,6 +391,27 @@ class EnhancementPipeline:
             logger.error(f"Failed to save MIDI file: {e}")
             raise RuntimeError(f"Failed to save enhanced MIDI: {e}")
 
+        # Record metrics if metrics_recorder is enabled
+        if hasattr(self, 'metrics_recorder') and self.metrics_recorder is not None:
+            try:
+                # Extract track ID from path (e.g., Track00001)
+                track_name = Path(midi_path).stem
+                track_id = track_name.split('_')[0] if '_' in track_name else track_name
+
+                # Get audio duration
+                audio_duration = len(audio) / sr
+
+                # Record metrics
+                self.metrics_recorder.record_track_metrics(
+                    track_id=track_id,
+                    track_name=track_name,
+                    report=report,
+                    audio_duration=audio_duration
+                )
+                logger.info(f"✓ Metrics recorded for {track_id}")
+            except Exception as e:
+                logger.warning(f"Failed to record metrics: {e}")
+
         return midi_enhanced, report
 
     def compare_enhancement(
@@ -512,7 +535,8 @@ def enhance_from_file(
     audio_path: str,
     output_path: Optional[str] = None,
     config_path: Optional[str] = None,
-    verbose: bool = False
+    verbose: bool = False,
+    metrics_dir: Optional[str] = None
 ) -> Tuple[pretty_midi.PrettyMIDI, Dict[str, Any]]:
     """
     Convenience function for file-based enhancement workflow.
@@ -523,6 +547,7 @@ def enhance_from_file(
         output_path: Path to save enhanced MIDI (auto-generated if None)
         config_path: Path to YAML configuration file (uses defaults if None)
         verbose: Enable verbose logging
+        metrics_dir: Directory to save metrics (enables metrics recording)
 
     Returns:
         Tuple of (enhanced_midi, report_dict)
@@ -531,7 +556,8 @@ def enhance_from_file(
         >>> midi_enhanced, report = enhance_from_file(
         ...     midi_path="output_raw.mid",
         ...     audio_path="song.wav",
-        ...     output_path="output_enhanced.mid"
+        ...     output_path="output_enhanced.mid",
+        ...     metrics_dir="metrics"
         ... )
     """
     # Load config if provided
@@ -540,6 +566,12 @@ def enhance_from_file(
         config = EnhancementConfig.from_yaml(config_path)
 
     pipeline = EnhancementPipeline(config=config, verbose=verbose)
+
+    # Enable metrics recording if requested
+    if metrics_dir is not None:
+        pipeline.metrics_recorder = MetricsRecorder(output_dir=metrics_dir)
+        logger.info(f"Metrics recording enabled: {metrics_dir}")
+
     return pipeline.enhance_from_file(midi_path, audio_path, output_path)
 
 
@@ -678,6 +710,8 @@ Examples:
                        help='Enable verbose logging')
     parser.add_argument('--report-json', type=str, default=None,
                        help='Save JSON report to specified path')
+    parser.add_argument('--metrics-dir', type=str, default=None,
+                       help='Directory to save metrics (enables metrics recording)')
 
     args = parser.parse_args()
 
@@ -688,7 +722,8 @@ Examples:
             audio_path=args.audio,
             output_path=args.output,
             config_path=args.config,
-            verbose=args.verbose
+            verbose=args.verbose,
+            metrics_dir=args.metrics_dir
         )
 
         # Print report
