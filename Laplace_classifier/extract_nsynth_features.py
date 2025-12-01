@@ -679,11 +679,24 @@ def extract_nsynth_features(
         Tuple of (features array, labels array)
     """
     nsynth_dir = Path(nsynth_dir)
-    
-    # Load metadata
+
+    # Auto-detect correct directory structure
+    # NSynth extraction may create nested directory: nsynth-train/nsynth-train/
     json_path = nsynth_dir / 'examples.json'
     if not json_path.exists():
-        raise FileNotFoundError(f"examples.json not found in {nsynth_dir}")
+        # Try nested directory
+        nested_dir = nsynth_dir / nsynth_dir.name
+        nested_json = nested_dir / 'examples.json'
+        if nested_json.exists():
+            nsynth_dir = nested_dir
+            json_path = nested_json
+            if verbose:
+                print(f"Found nested structure, using: {nsynth_dir}")
+        else:
+            raise FileNotFoundError(
+                f"examples.json not found in {nsynth_dir} or {nested_dir}\n"
+                f"Expected structure: nsynth-train/examples.json or nsynth-train/nsynth-train/examples.json"
+            )
     
     if verbose:
         print(f"Loading metadata from {json_path}...")
