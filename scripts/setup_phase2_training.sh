@@ -86,7 +86,7 @@ else
     echo "📥 Downloading NSynth train set (~25GB)..."
     echo "   This will take 15-30 minutes depending on connection speed"
 
-    NSYNTH_URL="https://storage.googleapis.com/magentadata/datasets/nsynth/nsynth-train.jsonwav.tar.gz"
+    NSYNTH_URL="http://download.magenta.tensorflow.org/datasets/nsynth/nsynth-train.jsonwav.tar.gz"
     NSYNTH_ARCHIVE="${WORK_DIR}/nsynth-train.jsonwav.tar.gz"
 
     # Download with progress
