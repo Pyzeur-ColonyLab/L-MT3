@@ -57,21 +57,31 @@ class EnhancementPipeline:
         verbose: Enable detailed logging if True
     """
 
-    def __init__(self, config: Optional[EnhancementConfig] = None, verbose: bool = False):
+    def __init__(self, config: Optional[EnhancementConfig] = None, verbose: bool = False,
+                 use_ml_classifier: bool = False, classifier_path: Optional[str] = None):
         """
         Initialize enhancement pipeline.
 
         Args:
             config: EnhancementConfig instance (creates default if None)
             verbose: Enable verbose logging for debugging
+            use_ml_classifier: Use Phase 2 ML classifier for refinement
+            classifier_path: Path to trained ML classifier model
         """
         self.config = config or EnhancementConfig()
         self.metrics_tracker = EnhancementMetrics()
         self.verbose = verbose
+        self.use_ml_classifier = use_ml_classifier
+        self.classifier_path = classifier_path
 
         if self.verbose:
             logger.setLevel(logging.DEBUG)
             logger.debug("Enhanced pipeline initialized in verbose mode")
+
+        if self.use_ml_classifier:
+            if not self.classifier_path:
+                raise ValueError("classifier_path required when use_ml_classifier=True")
+            logger.info(f"Using Phase 2 ML classifier: {self.classifier_path}")
 
     def validate_inputs(
         self,
@@ -254,26 +264,51 @@ class EnhancementPipeline:
         report['timing']['consolidation'] = time.time() - stage_start
 
         # Stage 3: Timbre-based Refinement
-        logger.info("\n[Stage 3/4] Applying timbre-based duration refinement...")
+        if self.use_ml_classifier:
+            logger.info("\n[Stage 3/4] Applying ML-based instrument refinement (Phase 2)...")
+        else:
+            logger.info("\n[Stage 3/4] Applying timbre-based duration refinement (Phase 1)...")
         stage_start = time.time()
 
         try:
-            midi_enhanced, refinement_report = refine_by_timbre(
-                midi=midi_consolidated,
-                audio=audio,
-                sr=sr,
-                config=self.config,
-                features=features
-            )
+            if self.use_ml_classifier:
+                # Phase 2: ML classifier refinement
+                from laplace_mrmt3.ml_refinement import MLTimbreRefiner
+
+                refiner = MLTimbreRefiner(self.config, self.classifier_path)
+                midi_enhanced = refiner.refine_instruments(midi_consolidated, audio, sr)
+
+                # Get refinement stats
+                stats = refiner.get_refinement_stats()
+                refinement_report = (
+                    f"ML Refinement Stats:\n"
+                    f"  Refinements applied: {stats['num_refined']}\n"
+                    f"  Average confidence: {stats.get('avg_confidence', 0):.2%}\n"
+                )
+                if 'refinements_by_family' in stats:
+                    refinement_report += "  By family:\n"
+                    for family, count in stats['refinements_by_family'].items():
+                        refinement_report += f"    {family}: {count}\n"
+
+                n_refinements = stats['num_refined']
+            else:
+                # Phase 1: Heuristic refinement
+                midi_enhanced, refinement_report = refine_by_timbre(
+                    midi=midi_consolidated,
+                    audio=audio,
+                    sr=sr,
+                    config=self.config,
+                    features=features
+                )
+                n_refinements = refinement_report.count("Instrument") if "Instrument" in refinement_report else 0
 
             report['stages']['refinement'] = {
                 'status': 'success',
-                'report': refinement_report
+                'report': refinement_report,
+                'method': 'ml_classifier' if self.use_ml_classifier else 'heuristic'
             }
 
-            # Count number of refinement decisions from report
-            n_refinements = refinement_report.count("Instrument") if "Instrument" in refinement_report else 0
-            logger.info(f"✓ Refinement complete")
+            logger.info(f"✓ Refinement complete ({n_refinements} changes)")
 
         except Exception as e:
             logger.error(f"Refinement failed: {e}")
@@ -536,7 +571,9 @@ def enhance_from_file(
     output_path: Optional[str] = None,
     config_path: Optional[str] = None,
     verbose: bool = False,
-    metrics_dir: Optional[str] = None
+    metrics_dir: Optional[str] = None,
+    use_ml_classifier: bool = False,
+    classifier_path: Optional[str] = None
 ) -> Tuple[pretty_midi.PrettyMIDI, Dict[str, Any]]:
     """
     Convenience function for file-based enhancement workflow.
@@ -565,7 +602,12 @@ def enhance_from_file(
     if config_path is not None:
         config = EnhancementConfig.from_yaml(config_path)
 
-    pipeline = EnhancementPipeline(config=config, verbose=verbose)
+    pipeline = EnhancementPipeline(
+        config=config,
+        verbose=verbose,
+        use_ml_classifier=use_ml_classifier,
+        classifier_path=classifier_path
+    )
 
     # Enable metrics recording if requested
     if metrics_dir is not None:
@@ -712,6 +754,10 @@ Examples:
                        help='Save JSON report to specified path')
     parser.add_argument('--metrics-dir', type=str, default=None,
                        help='Directory to save metrics (enables metrics recording)')
+    parser.add_argument('--use-ml-classifier', action='store_true',
+                       help='Use Phase 2 ML classifier instead of heuristic refinement')
+    parser.add_argument('--classifier-path', type=str, default=None,
+                       help='Path to trained ML classifier (.pkl file)')
 
     args = parser.parse_args()
 
@@ -723,7 +769,9 @@ Examples:
             output_path=args.output,
             config_path=args.config,
             verbose=args.verbose,
-            metrics_dir=args.metrics_dir
+            metrics_dir=args.metrics_dir,
+            use_ml_classifier=args.use_ml_classifier,
+            classifier_path=args.classifier_path
         )
 
         # Print report
