@@ -191,28 +191,42 @@ class MLTimbreRefiner:
         self,
         instrument: pretty_midi.Instrument,
         audio: np.ndarray,
-        sr: int
+        sr: int,
+        max_notes: int = 50,
+        window_duration: float = 0.2
     ) -> np.ndarray:
         """
         Extract audio segments corresponding to an instrument's notes
+
+        Memory-efficient: limits number of notes and window size to prevent OOM
 
         Args:
             instrument: PrettyMIDI Instrument
             audio: Full audio waveform
             sr: Sample rate
+            max_notes: Maximum notes to sample (prevents OOM on large instruments)
+            window_duration: Duration of audio window per note in seconds
 
         Returns:
-            Concatenated audio from all note onsets
+            Concatenated audio from sampled note onsets
         """
         if not instrument.notes:
             return np.array([])
 
-        segments = []
+        # Sample subset of notes if too many (prevents OOM)
+        notes = instrument.notes
+        if len(notes) > max_notes:
+            # Random sample to get representative coverage
+            import random
+            notes = random.sample(notes, max_notes)
+            logging.debug(f"Sampled {max_notes}/{len(instrument.notes)} notes to prevent OOM")
 
-        for note in instrument.notes:
-            # Extract note onset + 0.5s (enough for attack + decay)
+        segments = []
+        duration_samples = int(window_duration * sr)
+
+        for note in notes:
+            # Extract note onset + window
             start_sample = int(note.start * sr)
-            duration_samples = int(0.5 * sr)  # 500ms window
             end_sample = min(start_sample + duration_samples, len(audio))
 
             if end_sample > start_sample:
@@ -220,7 +234,12 @@ class MLTimbreRefiner:
 
         # Concatenate all segments
         if segments:
-            return np.concatenate(segments)
+            result = np.concatenate(segments)
+            # Limit total length to prevent OOM (max ~5 seconds of audio per instrument)
+            max_samples = int(5.0 * sr)
+            if len(result) > max_samples:
+                result = result[:max_samples]
+            return result
         else:
             return np.array([])
 
