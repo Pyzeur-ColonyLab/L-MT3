@@ -145,11 +145,11 @@ class RealMusicTester:
                 if self.model_path is None:
                     raise ValueError("model_path required when baseline_midi_path not provided")
 
-                baseline_midi_path = track_output_dir / f"{track_name}_baseline.mid"
+                baseline_midi_path = (track_output_dir / f"{track_name}_baseline.mid").resolve()
 
                 inference_success = run_inference(
-                    model_path=str(self.model_path),
-                    audio_path=str(audio_path),
+                    model_path=str(Path(self.model_path).resolve()),
+                    audio_path=str(Path(audio_path).resolve()),
                     output_path=str(baseline_midi_path),
                     device='cuda'
                 )
