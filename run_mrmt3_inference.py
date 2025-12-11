@@ -76,6 +76,13 @@ def run_inference(model_path: str, audio_path: str, output_path: str, device: st
             logger.error("Please ensure MR-MT3 is cloned in the models directory")
             return False
 
+        # Save current working directory
+        original_cwd = os.getcwd()
+
+        # Change to MR-MT3 directory (required for config file loading)
+        os.chdir(str(mr_mt3_repo))
+        logger.info(f"Changed to MR-MT3 directory: {mr_mt3_repo}")
+
         # Add MR-MT3 repo to Python path
         logger.info("Using MR-MT3 repository (with patched inference)...")
         sys.path.insert(0, str(mr_mt3_repo))
@@ -119,6 +126,11 @@ def run_inference(model_path: str, audio_path: str, output_path: str, device: st
             import traceback
             traceback.print_exc()
             return False
+
+        finally:
+            # Restore original working directory
+            os.chdir(original_cwd)
+            logger.info(f"Restored working directory: {original_cwd}")
 
     except Exception as e:
         logger.error(f"Setup failed: {e}")
