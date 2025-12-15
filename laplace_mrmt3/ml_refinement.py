@@ -28,6 +28,13 @@ import logging
 
 from .config import EnhancementConfig
 from .features import MIDIAwareFeatureExtractor
+from .source_separation import (
+    SourceSeparator,
+    create_separator,
+    match_instrument_to_stem,
+    get_stem_audio,
+    StemType
+)
 
 # Import Laplace Classifier components
 try:
@@ -67,13 +74,20 @@ class MLTimbreRefiner:
     - Robust to diverse timbres
     """
 
-    def __init__(self, config: EnhancementConfig, classifier_path: str):
+    def __init__(
+        self,
+        config: EnhancementConfig,
+        classifier_path: str,
+        source_separator: Optional[SourceSeparator] = None
+    ):
         """
         Initialize ML-based refiner
 
         Args:
             config: EnhancementConfig with refinement parameters
             classifier_path: Path to trained classifier (.pkl file)
+            source_separator: Optional SourceSeparator for audio separation
+                             If None, uses full audio without separation
         """
         if not ML_AVAILABLE:
             raise ImportError(
@@ -103,6 +117,16 @@ class MLTimbreRefiner:
         # MIDI-aware extractor for instrument audio segmentation
         self.midi_extractor = MIDIAwareFeatureExtractor(config)
 
+        # Source separation (optional)
+        self.source_separator = source_separator
+        self.separated_stems: Optional[Dict[str, np.ndarray]] = None
+
+        if self.source_separator:
+            logging.info(f"Source separation enabled: {type(source_separator).__name__}")
+            logging.info(f"  Available stems: {source_separator.available_stems}")
+        else:
+            logging.info("Source separation disabled - using full audio")
+
         # Track refinement decisions
         self.decisions: List[MLRefinementDecision] = []
 
@@ -127,15 +151,27 @@ class MLTimbreRefiner:
 
         logging.info(f"ML-based refinement: processing {len(midi.instruments)} instruments")
 
+        # Perform source separation if enabled
+        if self.source_separator:
+            logging.info("Performing source separation...")
+            self.separated_stems = self.source_separator.separate(audio, sr)
+            logging.info(f"  Separated into {len(self.separated_stems)} stems")
+        else:
+            self.separated_stems = None
+
         for inst_idx, instrument in enumerate(midi.instruments):
             if instrument.is_drum:
+                logging.debug(f"Instrument {inst_idx}: drum track, skipping")
                 continue
 
-            # Extract audio for this instrument's notes
-            inst_audio = self._extract_instrument_audio(instrument, audio, sr)
+            # Get appropriate audio for this instrument
+            inst_audio = self._get_instrument_audio(instrument, audio, sr)
 
-            if len(inst_audio) < sr * 0.1:  # Less than 0.1s of audio
-                logging.debug(f"Instrument {inst_idx}: insufficient audio, skipping")
+            if len(inst_audio) < sr * 0.05:  # Less than 50ms of audio
+                logging.warning(
+                    f"Instrument {inst_idx} (program {instrument.program}): "
+                    f"insufficient audio ({len(inst_audio)/sr:.3f}s), skipping"
+                )
                 continue
 
             # Extract 26 Laplace features
@@ -186,6 +222,64 @@ class MLTimbreRefiner:
         logging.info(f"Refinement complete: {len(self.decisions)}/{len(midi.instruments)} instruments modified")
 
         return midi
+
+    def _get_instrument_audio(
+        self,
+        instrument: pretty_midi.Instrument,
+        audio: np.ndarray,
+        sr: int
+    ) -> np.ndarray:
+        """
+        Get audio for instrument using source separation if available
+
+        Args:
+            instrument: PrettyMIDI Instrument
+            audio: Full audio waveform
+            sr: Sample rate
+
+        Returns:
+            Audio for this instrument (separated or full audio)
+        """
+        # If source separation enabled, use appropriate stem
+        if self.separated_stems:
+            # Determine which stem this instrument belongs to
+            stem_type = match_instrument_to_stem(
+                instrument.program,
+                instrument.is_drum
+            )
+
+            # Get stem audio
+            stem_audio = get_stem_audio(
+                self.separated_stems,
+                stem_type,
+                fallback_to_other=True
+            )
+
+            if stem_audio is not None:
+                # Limit to reasonable length for feature extraction
+                max_samples = int(5.0 * sr)
+                result = stem_audio[:min(len(stem_audio), max_samples)]
+
+                logging.debug(
+                    f"Using '{stem_type}' stem for instrument {instrument.program}: "
+                    f"{len(result)/sr:.2f}s"
+                )
+
+                return result
+
+        # Fallback: use full audio (Option A from troubleshooting)
+        # This ensures we always have audio to classify
+        max_duration = 5.0  # 5 seconds sufficient for timbre analysis
+        max_samples = int(max_duration * sr)
+
+        audio_segment = audio[:min(max_samples, len(audio))]
+
+        logging.debug(
+            f"Using full audio for instrument {instrument.program}: "
+            f"{len(audio_segment)/sr:.2f}s"
+        )
+
+        return audio_segment
 
     def _extract_instrument_audio(
         self,

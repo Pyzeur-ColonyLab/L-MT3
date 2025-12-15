@@ -55,7 +55,9 @@ class RealMusicTester:
         classifier_path: str,
         model_path: Optional[str] = None,
         output_dir: str = './test_results',
-        config: Optional[EnhancementConfig] = None
+        config: Optional[EnhancementConfig] = None,
+        use_source_separation: bool = False,
+        separation_method: str = 'mock'
     ):
         """
         Initialize real music tester
@@ -65,11 +67,15 @@ class RealMusicTester:
             model_path: Path to MR-MT3 model checkpoint (.pth) - if None, expects existing MIDI
             output_dir: Root output directory for all results
             config: Enhancement configuration (uses defaults if None)
+            use_source_separation: Enable source separation for audio preprocessing
+            separation_method: Method to use ('mock', 'demucs', 'spleeter')
         """
         self.classifier_path = Path(classifier_path)
         self.model_path = Path(model_path) if model_path else None
         self.output_dir = Path(output_dir)
         self.config = config or EnhancementConfig()
+        self.use_source_separation = use_source_separation
+        self.separation_method = separation_method
 
         # Validate classifier exists
         if not self.classifier_path.exists():
@@ -83,7 +89,9 @@ class RealMusicTester:
             config=self.config,
             verbose=True,
             use_ml_classifier=True,
-            classifier_path=str(self.classifier_path)
+            classifier_path=str(self.classifier_path),
+            use_source_separation=self.use_source_separation,
+            separation_method=self.separation_method
         )
 
         # Track results
@@ -92,6 +100,8 @@ class RealMusicTester:
         logger.info(f"Initialized RealMusicTester")
         logger.info(f"  Classifier: {self.classifier_path}")
         logger.info(f"  Output dir: {self.output_dir}")
+        if self.use_source_separation:
+            logger.info(f"  Source separation: {self.separation_method}")
 
     def process_audio_file(
         self,

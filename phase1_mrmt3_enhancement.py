@@ -57,8 +57,16 @@ class EnhancementPipeline:
         verbose: Enable detailed logging if True
     """
 
-    def __init__(self, config: Optional[EnhancementConfig] = None, verbose: bool = False,
-                 use_ml_classifier: bool = False, classifier_path: Optional[str] = None):
+    def __init__(
+        self,
+        config: Optional[EnhancementConfig] = None,
+        verbose: bool = False,
+        use_ml_classifier: bool = False,
+        classifier_path: Optional[str] = None,
+        use_source_separation: bool = False,
+        separation_method: str = 'mock',
+        separation_kwargs: Optional[Dict] = None
+    ):
         """
         Initialize enhancement pipeline.
 
@@ -67,12 +75,18 @@ class EnhancementPipeline:
             verbose: Enable verbose logging for debugging
             use_ml_classifier: Use Phase 2 ML classifier for refinement
             classifier_path: Path to trained ML classifier model
+            use_source_separation: Enable source separation preprocessing
+            separation_method: Method to use ('mock', 'demucs', 'spleeter')
+            separation_kwargs: Additional kwargs for separation method
         """
         self.config = config or EnhancementConfig()
         self.metrics_tracker = EnhancementMetrics()
         self.verbose = verbose
         self.use_ml_classifier = use_ml_classifier
         self.classifier_path = classifier_path
+        self.use_source_separation = use_source_separation
+        self.separation_method = separation_method
+        self.separation_kwargs = separation_kwargs or {}
 
         if self.verbose:
             logger.setLevel(logging.DEBUG)
@@ -82,6 +96,9 @@ class EnhancementPipeline:
             if not self.classifier_path:
                 raise ValueError("classifier_path required when use_ml_classifier=True")
             logger.info(f"Using Phase 2 ML classifier: {self.classifier_path}")
+
+        if self.use_source_separation:
+            logger.info(f"Source separation enabled: {self.separation_method}")
 
     def validate_inputs(
         self,
@@ -274,8 +291,26 @@ class EnhancementPipeline:
             if self.use_ml_classifier:
                 # Phase 2: ML classifier refinement
                 from laplace_mrmt3.ml_refinement import MLTimbreRefiner
+                from laplace_mrmt3.source_separation import create_separator
 
-                refiner = MLTimbreRefiner(self.config, self.classifier_path)
+                # Create source separator if enabled
+                source_separator = None
+                if self.use_source_separation:
+                    try:
+                        source_separator = create_separator(
+                            self.separation_method,
+                            **self.separation_kwargs
+                        )
+                        logger.info(f"Created {self.separation_method} separator")
+                    except Exception as e:
+                        logger.error(f"Failed to create separator: {e}")
+                        logger.warning("Continuing without source separation")
+
+                refiner = MLTimbreRefiner(
+                    self.config,
+                    self.classifier_path,
+                    source_separator=source_separator
+                )
                 midi_enhanced = refiner.refine_instruments(midi_consolidated, audio, sr)
 
                 # Get refinement stats
